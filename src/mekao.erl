@@ -4,7 +4,8 @@
 -export([
     select/3, select_pk/3,
     insert/3,
-    update/4, update_pk/3
+    update/4, update_pk/3,
+    delete/3, delete_pk/3
 ]).
 
 -include("mekao.hrl").
@@ -118,6 +119,30 @@ do_update(SkipFun, [_EName | AllVals], [_EName | AllConds], Table, S) ->
         return(Table, S)
     ],
     {Q, SetTypes ++ WhereTypes, SetVals ++ WhereVals}.
+
+
+-spec delete_pk(entity(), table(), s()) -> 'query'().
+%% @doc Deletes entity by primary key
+delete_pk(E, Table, S) when is_tuple(E) ->
+    SkipFun = fun(#mekao_field{key = Key}) -> not Key end,
+    do_delete(SkipFun, tuple_to_list(E), Table, S).
+
+
+-spec delete(entity(), table(), s()) -> 'query'().
+%% @doc Deletes entities, skips fields from `WHERE' clause with `$skip' value
+delete(E, Table, S) when is_tuple(E) ->
+    SkipFun = fun (_) -> false end,
+    do_delete(SkipFun, tuple_to_list(E), Table, S).
+
+do_delete(SkipFun, [_EName | AllVals], Table, S) ->
+    QData = {_, _, Types, Vals} = unpack(SkipFun, AllVals, Table, S),
+    Q = [
+        "DELETE FROM ",
+            table(Table),
+        " WHERE ",
+            join_conditions(QData, " AND ")
+    ],
+    {Q, Types, Vals}.
 
 %%%===================================================================
 %%% Internal functions

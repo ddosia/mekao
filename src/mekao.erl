@@ -17,7 +17,7 @@
 -type type()    :: term().
 -type value()   :: '$skip' | term().
 
--type 'query'() :: {SQLText :: iolist(), Fields :: [iolist()], Types :: [term()]}.
+-type 'query'() :: {SQLText :: iolist(), Types :: [term()], Vals :: [term()]}.
 
 -opaque fphtvs()  :: { Fields       :: [iolist()]
                      , PlaceHolders :: [iolist()]

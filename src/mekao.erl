@@ -105,7 +105,8 @@ build(Select) when is_record(Select, mekao_select) ->
         table   = Table,
         where   = Where
     } = Select,
-    [<<"SELECT ">>, Columns, <<" FROM ">>, Table, <<" WHERE ">>, Where];
+
+    [<<"SELECT ">>, Columns, <<" FROM ">>, Table, build_where(Where), <<";">>];
 
 build(Insert) when is_record(Insert, mekao_insert) ->
     #mekao_insert{
@@ -116,7 +117,7 @@ build(Insert) when is_record(Insert, mekao_insert) ->
     } = Insert,
     [
         <<"INSERT INTO ">>, Table, <<" (">>, Columns, <<") VALUES (">>,
-        Values, <<") ">>, Return
+        Values, <<")">>, build_return(Return), <<";">>
     ];
 
 build(Update) when is_record(Update, mekao_update) ->
@@ -128,7 +129,7 @@ build(Update) when is_record(Update, mekao_update) ->
     } = Update,
     [
         <<"UPDATE ">>, Table, <<" SET ">>, Set,
-        <<" WHERE ">>, Where, <<" ">>, Return
+        build_where(Where), build_return(Return), <<";">>
     ];
 
 build(Delete) when is_record(Delete, mekao_delete) ->
@@ -137,7 +138,7 @@ build(Delete) when is_record(Delete, mekao_delete) ->
         where       = Where,
         returning   = Return
     } = Delete,
-    [<<"DELETE FROM ">>, Table, <<" WHERE ">>, Where, <<" ">>, Return].
+    [<<"DELETE FROM ">>, Table, build_where(Where), build_return(Return)].
 
 %%%===================================================================
 %%% Internal functions
@@ -235,15 +236,24 @@ where(QData, #mekao_settings{is_null = IsNull}) ->
         <<" AND ">>,
         fun ({C, PH, _T, V}) ->
             case IsNull(V) of
-                false -> [C, " = ", PH];
-                true -> [C, " IS NULL"]
+                false -> [C, <<" = ">>, PH];
+                true -> [C, <<" IS NULL">>]
             end
         end
     ).
 
+build_return([]) ->
+    <<>>;
+build_return(Return) ->
+    [<<" ">> | Return].
+
+build_where([]) ->
+    <<>>;
+build_where(Where) ->
+    [<<" WHERE ">> | Where].
 
 set(QData) ->
     mekao_utils:intersperse4(
         QData, <<", ">>,
-        fun ({C, PH, _T, _V}) -> [C, " = ", PH] end
+        fun ({C, PH, _T, _V}) -> [C, <<" = ">>, PH] end
     ).

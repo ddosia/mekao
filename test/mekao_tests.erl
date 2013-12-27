@@ -21,6 +21,11 @@
     is_null     = fun(V) -> V == undefined end
 }).
 
+-define(MK_CALL(CallName, E), begin
+    {Q, Types, Vals} = mekao:CallName(E, ?TABLE_BOOKS, ?S),
+    {iolist_to_binary(Q), Types, Vals}
+end).
+
 %%%===================================================================
 %%% Tests
 %%%===================================================================
@@ -30,7 +35,7 @@ is_null_test_() -> [
     ?_assertEqual(
         {<<"SELECT id, isbn, title, author, created FROM books",
            " WHERE id IS NULL;">>, [int], [undefined]},
-        select_pk(book(undefined))
+        ?MK_CALL(select_pk, book(undefined))
     )
 ].
 
@@ -39,28 +44,37 @@ empty_where_test_() -> [
     %% TODO: extend this to test UPDATE and DELETE
     ?_assertEqual(
         {<<"SELECT id, isbn, title, author, created FROM books;">>, [], []},
-        select(#book{_ = '$skip'})
+        ?MK_CALL(select, #book{_ = '$skip'})
     )
 ].
 
+
+skip_test_() ->
+    %% TODO: extend this to test UPDATE and DELETE
+    #book{author = Author, title = Title} = book(undefined), [
+        ?_assertEqual(
+            {<<"SELECT id, isbn, title, author, created FROM books",
+                " WHERE title = $1 AND author = $2;">>,
+                [varchar, varchar], [Title, Author]},
+            ?MK_CALL(
+                select, #book{author = Author, title = Title, _ = '$skip'}
+            )
+        ),
+        ?_assertEqual(
+            {<<"INSERT INTO books (title, author) VALUES ($1, $2);">>,
+                [varchar, varchar], [Title, Author]},
+            ?MK_CALL(
+                insert, #book{author = Author, title = Title, _ = '$skip'}
+            )
+        )
+    ].
 
 
 select_pk_test() ->
     ?assertEqual(
         {<<"SELECT id, isbn, title, author, created FROM books",
             " WHERE id = $1;">>, [int], [1]},
-        select_pk(book(1))
-    ).
-
-select_skip_test() ->
-    #book{author = Author, title = Title} = book(undefined),
-    ?assertEqual(
-        {<<"SELECT id, isbn, title, author, created FROM books",
-            " WHERE title = $1 AND author = $2;">>,
-            [varchar, varchar], [Title, Author]},
-        select(
-            #book{author = Author, title = Title, _ = '$skip'}
-        )
+        ?MK_CALL(select_pk, book(1))
     ).
 
 %%%===================================================================
@@ -75,12 +89,3 @@ book(Id) ->
         author  = <<"Fred Hebert">>,
         created = calendar:now_to_datetime(os:timestamp())
     }.
-
-select_pk(B) ->
-    {Q, Types, Vals} = mekao:select_pk(B, ?TABLE_BOOKS, ?S),
-    {iolist_to_binary(Q), Types, Vals}.
-
-select(B) ->
-    {Q, Types, Vals} = mekao:select(B, ?TABLE_BOOKS, ?S),
-    {iolist_to_binary(Q), Types, Vals}.
-

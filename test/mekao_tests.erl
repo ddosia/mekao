@@ -137,6 +137,12 @@ update_pk_test() ->
         mk_call(update_pk, Book)
     ).
 
+delete_pk_test() ->
+    ?assertEqual(
+        {<<"DELETE FROM books WHERE id = $1;">>, [int], [1]},
+        mk_call(delete_pk, book(1))
+    ).
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================

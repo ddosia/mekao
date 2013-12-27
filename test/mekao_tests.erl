@@ -25,18 +25,42 @@
 %%% Tests
 %%%===================================================================
 
-is_null_test() ->
-    ?assert(
+is_null_test_() -> [
+    %% TODO: extend this to test UPDATE and DELETE
+    ?_assertEqual(
         {<<"SELECT id, isbn, title, author, created FROM books",
-           " WHERE author IS NULL;">>, [varchar], [undefined]} ==
-        select(#book{author = undefined, _ = '$skip'})
-    ).
+           " WHERE id IS NULL;">>, [int], [undefined]},
+        select_pk(book(undefined))
+    )
+].
+
+
+empty_where_test_() -> [
+    %% TODO: extend this to test UPDATE and DELETE
+    ?_assertEqual(
+        {<<"SELECT id, isbn, title, author, created FROM books;">>, [], []},
+        select(#book{_ = '$skip'})
+    )
+].
+
 
 
 select_pk_test() ->
-    ?assert(
+    ?assertEqual(
         {<<"SELECT id, isbn, title, author, created FROM books",
-            " WHERE id = $1;">>, [int], [1]} == select_pk(book(1))
+            " WHERE id = $1;">>, [int], [1]},
+        select_pk(book(1))
+    ).
+
+select_skip_test() ->
+    #book{author = Author, title = Title} = book(undefined),
+    ?assertEqual(
+        {<<"SELECT id, isbn, title, author, created FROM books",
+            " WHERE title = $1 AND author = $2;">>,
+            [varchar, varchar], [Title, Author]},
+        select(
+            #book{author = Author, title = Title, _ = '$skip'}
+        )
     ).
 
 %%%===================================================================

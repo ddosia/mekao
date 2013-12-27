@@ -33,11 +33,11 @@ book(Id) ->
 
 select_pk(B) ->
     {Q, Types, Vals} = mekao:select_pk(B, ?TABLE_BOOKS, ?S),
-    {iolist_to_binary(mekao:build(Q)), Types, Vals}.
+    {iolist_to_binary(Q), Types, Vals}.
 
 select(B) ->
     {Q, Types, Vals} = mekao:select(B, ?TABLE_BOOKS, ?S),
-    {iolist_to_binary(mekao:build(Q)), Types, Vals}.
+    {iolist_to_binary(Q), Types, Vals}.
 
 
 is_null_test() ->

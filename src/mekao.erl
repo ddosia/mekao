@@ -7,6 +7,7 @@
     update_pk/3,
     delete_pk/3,
 
+    prepare/4,
     build/1
 ]).
 
@@ -34,8 +35,8 @@
 -type 'query'() :: #mekao_insert{} | #mekao_select{} | #mekao_update{}
                  | #mekao_delete{}.
 
--type query_ret() :: {'query'(), Types :: [term()], Vals :: [term()]}.
-
+-type query_ret()   :: {iolist(), Types :: [term()], Vals :: [term()]}.
+-type p_query_ret() :: {'query'(), Types :: [term()], Vals :: [term()]}.
 
 %% ===================================================================
 %% API functions
@@ -44,58 +45,60 @@
 -spec insert(Entity :: tuple() | list(), table(), s()) -> query_ret().
 %% @doc Inserts entity, omits columns with `$skip' value.
 insert(E, Table, S) ->
-    prepare_insert(
-        qdata(
-            fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
-            1, E, Table, S
-        ), Table, S
-    ).
+    {Q, Types, Vals} = prepare(insert, E, Table, S),
+    {build(Q), Types, Vals}.
+
 
 -spec select_pk(Entity :: tuple() | list(), table(), s()) -> query_ret().
 %% @doc Reads entity by it's primary key.
 select_pk(E, Table, S) ->
-    prepare_select(
-        qdata(
-            fun(#mekao_column{key = Key}, _) -> not Key end,
-            1, E, Table, S
-        ), Table, S
-    ).
-
-
--spec update_pk(Entity :: tuple() | list(), table(), s()) -> query_ret().
-%% @doc Updates entity by it's primary key, omits columns with `$skip' value.
-update_pk(E, Table, S) ->
-    SetQData = {_, SetPHs, _, _} = qdata(
-        fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
-        1, E, Table, S
-    ),
-    WhereQData = qdata(
-        fun(#mekao_column{key = Key}, _) -> not Key end,
-        length(SetPHs) + 1, E, Table, S
-    ),
-    prepare_update(SetQData, WhereQData, Table, S).
-
-
--spec delete_pk(Entity :: tuple() | list(), table(), s()) -> query_ret().
-%% @doc Deletes entity by primary key.
-delete_pk(E, Table, S) ->
-    prepare_delete(
-        qdata(
-            fun(#mekao_column{key = Key}, _) -> not Key end,
-            1, E, Table, S
-        ), Table, S
-    ).
+    {Q, Types, Vals} = prepare(select_pk, E, Table, S),
+    {build(Q), Types, Vals}.
 
 
 -spec select(Entity :: tuple() | list(), table(), s()) -> query_ret().
 %% @doc Selects several entities, omits columns with `$skip' value.
 select(E, Table, S) ->
-    prepare_select(
-        qdata(
-            fun(_, V) -> V == '$skip' end,
-            1, E, Table, S
-        ), Table, S
-    ).
+    {Q, Types, Vals} = prepare(select, E, Table, S),
+    {build(Q), Types, Vals}.
+
+-spec update_pk(Entity :: tuple() | list(), table(), s()) -> query_ret().
+%% @doc Updates entity by it's primary key, omits columns with `$skip' value.
+update_pk(E, Table, S) ->
+    {Q, Types, Vals} = prepare(update_pk, E, Table, S),
+    {build(Q), Types, Vals}.
+
+-spec delete_pk(Entity :: tuple() | list(), table(), s()) -> query_ret().
+%% @doc Deletes entity by primary key.
+delete_pk(E, Table, S) ->
+    {Q, Types, Vals} = prepare(delete_pk, E, Table, S),
+    {build(Q), Types, Vals}.
+
+
+-spec prepare( insert | select_pk | select | update_pk | delete_pk
+             , Entity :: tuple() | list()
+             , table(), s()
+             ) -> p_query_ret().
+prepare(insert, E, Table, S) ->
+    SkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
+    prepare(insert, SkipFun, E, Table, S);
+
+prepare(select_pk, E, Table, S) ->
+    SkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
+    prepare(select, SkipFun, E, Table, S);
+
+prepare(select, E, Table, S) ->
+    SkipFun = fun(_, V) -> V == '$skip' end,
+    prepare(select, SkipFun, E, Table, S);
+
+prepare(update_pk, E, Table, S) ->
+    SetSkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
+    WhereSkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
+    prepare(update, {SetSkipFun, WhereSkipFun}, {E, E}, Table, S);
+
+prepare(delete_pk, E, Table, S) ->
+    SkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
+    prepare(delete, SkipFun, E, Table, S).
 
 
 -spec build('query'()) -> iolist().
@@ -144,39 +147,48 @@ build(Delete) when is_record(Delete, mekao_delete) ->
 %%% Internal functions
 %%%===================================================================
 
--spec prepare_insert(qdata(), table(), s()) -> query_ret().
-prepare_insert({Cols, PHs, Types, Vals}, Table, S) ->
+prepare(insert, SkipFun, E, Table, S) ->
+    {Cols, PHs, Types, Vals} = qdata(
+        SkipFun, 1, E, Table, S
+    ),
     Q = #mekao_insert{
         table       = Table#mekao_table.name,
         columns     = mekao_utils:intersperse(Cols, <<", ">>),
         values      = mekao_utils:intersperse(PHs, <<", ">>),
         returning   = returning(insert, Table, S)
     },
-    {Q, Types, Vals}.
+    {Q, Types, Vals};
 
--spec prepare_select(qdata(), table(), s()) -> query_ret().
-prepare_select(QData = {_, _, Types, Vals}, Table, S) ->
+prepare(select, SkipFun, E, Table, S) ->
+    QData = {_, _, Types, Vals} = qdata(
+        SkipFun, 1, E, Table, S
+    ),
     Q = #mekao_select{
         table       = Table#mekao_table.name,
         columns     = all_columns(Table),
         where       = where(QData, S)
     },
-    {Q, Types, Vals}.
+    {Q, Types, Vals};
 
--spec prepare_update(qdata(), qdata(), table(), s()) -> query_ret().
-prepare_update( {_, _, SetTypes, SetVals} = SetQData
-              , {_, _, WhereTypes, WhereVals} = WhereQData
-              , Table, S) ->
+prepare(update, {SetSkipFun, WhereSkipFun}, {SetE, WhereE}, Table, S) ->
+    SetQData = {_, SetPHs, SetTypes, SetVals} = qdata(
+        SetSkipFun, 1, SetE, Table, S
+    ),
+    WhereQData = {_, _, WhereTypes, WhereVals} = qdata(
+        WhereSkipFun, length(SetPHs) + 1, WhereE, Table, S
+    ),
     Q = #mekao_update{
         table       = Table#mekao_table.name,
         set         = set(SetQData),
         where       = where(WhereQData, S),
         returning   = returning(update, Table, S)
     },
-    {Q, SetTypes ++ WhereTypes, SetVals ++ WhereVals}.
+    {Q, SetTypes ++ WhereTypes, SetVals ++ WhereVals};
 
--spec prepare_delete(qdata(), table(), s()) -> query_ret().
-prepare_delete(QData = {_, _, Types, Vals}, Table, S) ->
+prepare(delete, SkipFun, E, Table, S) ->
+    QData = {_, _, Types, Vals} = qdata(
+        SkipFun, 1, E, Table, S
+    ),
     Q = #mekao_delete{
         table       = Table#mekao_table.name,
         where       = where(QData, S),

@@ -112,6 +112,28 @@ returning_test_() ->
         )
     ].
 
+column_type_test() ->
+    Table0 = #mekao_table{columns = Cols} = ?TABLE_BOOKS,
+
+    Table = Table0#mekao_table{
+        columns = Cols ++ [
+            #mekao_column{
+                name = <<"type">>, type = int,
+                transform = fun (undefined) -> 0;
+                                (hardcover) -> 1;
+                                (paperback) -> 2
+                            end
+            }
+        ]
+    },
+    Book = #book{isbn = Isbn, title = Title, author = Author} = book(1),
+    ?assertEqual(
+        {<<"INSERT INTO books (isbn, title, author, type)",
+            " VALUES ($1, $2, $3, $4);">>,
+            [varchar, varchar, varchar, int], [Isbn, Title, Author, 2]},
+        mk_call(insert, erlang:append_element(Book, paperback), Table, ?S)
+    ).
+
 
 select_pk_test() ->
     ?assertEqual(

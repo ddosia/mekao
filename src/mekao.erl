@@ -219,13 +219,18 @@ qdata(_, _, [], [], _) ->
 qdata(SkipFun, Num, [V | Vals], [Col | Cols], S) ->
     Skip = SkipFun(Col, V),
     if not Skip ->
-        #mekao_column{type = T, name = CName} = Col,
+        #mekao_column{type = T, name = CName, transform = TrFun} = Col,
         PH = (S#mekao_settings.placeholder)(Num, V),
-
+        NewV =
+            if TrFun == undefined ->
+                V;
+            true ->
+                TrFun(V)
+            end,
         {ResCols, ResPHs, ResTypes, ResVals} = qdata(
             SkipFun, Num + 1, Vals, Cols, S
         ),
-        {[CName | ResCols], [PH | ResPHs], [T | ResTypes], [V | ResVals]};
+        {[CName | ResCols], [PH | ResPHs], [T | ResTypes], [NewV | ResVals]};
     true ->
         qdata(SkipFun, Num, Vals, Cols, S)
     end.

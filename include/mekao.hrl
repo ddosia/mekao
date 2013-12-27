@@ -3,7 +3,9 @@
     type        :: term(),          %% sql datatype, acceptable by underlying
                                     %% driver
     key = false :: boolean(),       %% primary key part
-    ro  = false :: boolean()        %% readonly
+    ro  = false :: boolean(),       %% readonly
+    transform   :: undefined
+                 | fun ((Val :: term()) -> NewVal :: term())
 }).
 
 -record(mekao_table, {
@@ -15,7 +17,7 @@
     %% different db drivers have different placeholders.
     %% pgsql accepts placeholders in form of `"$1, $2, ... $N"'.
     %% odbc driver accepts phs in form of `"?, ?, ..., ?"'
-    placeholder                 :: fun( ( Pos :: non_neg_integer()
+    placeholder                 :: fun( ( Num :: non_neg_integer()
                                         , Val :: term()
                                         ) -> iolist()),
 

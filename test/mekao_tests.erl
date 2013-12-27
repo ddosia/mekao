@@ -21,23 +21,30 @@
     is_null     = fun(V) -> V == undefined end
 }).
 
--define(MK_CALL(CallName, E), begin
-    {Q, Types, Vals} = mekao:CallName(E, ?TABLE_BOOKS, ?S),
+-define(MK_CALL(CallName, E, Table, S), begin
+    {Q, Types, Vals} = mekao:CallName(E, Table, S),
     {iolist_to_binary(Q), Types, Vals}
 end).
+
+-define(MK_CALL(CallName, E, Table), ?MK_CALL(CallName, E, Table, ?S)).
+
+-define(MK_CALL(CallName, E), ?MK_CALL(CallName, E, ?TABLE_BOOKS)).
 
 %%%===================================================================
 %%% Tests
 %%%===================================================================
 
-is_null_test_() -> [
-    %% TODO: extend this to test UPDATE and DELETE
-    ?_assertEqual(
-        {<<"SELECT id, isbn, title, author, created FROM books",
-           " WHERE id IS NULL;">>, [int], [undefined]},
-        ?MK_CALL(select_pk, book(undefined))
-    )
-].
+is_null_test_() ->
+    Null = erlang:make_ref(), [
+        %% TODO: extend this to test UPDATE and DELETE
+        ?_assertEqual(
+            {<<"SELECT id, isbn, title, author, created FROM books",
+               " WHERE id IS NULL;">>, [int], [Null]},
+            ?MK_CALL(select_pk, book(Null), ?TABLE_BOOKS, ?S#mekao_settings{
+                is_null = fun(V) -> V == Null end
+            })
+        )
+    ].
 
 
 empty_where_test_() -> [

@@ -21,6 +21,28 @@
     is_null     = fun(V) -> V == undefined end
 }).
 
+%%%===================================================================
+%%% Tests
+%%%===================================================================
+
+is_null_test() ->
+    ?assert(
+        {<<"SELECT id, isbn, title, author, created FROM books",
+           " WHERE author IS NULL;">>, [varchar], [undefined]} ==
+        select(#book{author = undefined, _ = '$skip'})
+    ).
+
+
+select_pk_test() ->
+    ?assert(
+        {<<"SELECT id, isbn, title, author, created FROM books",
+            " WHERE id = $1;">>, [int], [1]} == select_pk(book(1))
+    ).
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
+
 book(Id) ->
     #book{
         id      = Id,
@@ -38,17 +60,3 @@ select(B) ->
     {Q, Types, Vals} = mekao:select(B, ?TABLE_BOOKS, ?S),
     {iolist_to_binary(Q), Types, Vals}.
 
-
-is_null_test() ->
-    ?assert(
-        {<<"SELECT id, isbn, title, author, created FROM books",
-           " WHERE author IS NULL;">>, [varchar], [undefined]} ==
-        select(#book{author = undefined, _ = '$skip'})
-    ).
-
-
-select_pk_test() ->
-    ?assert(
-        {<<"SELECT id, isbn, title, author, created FROM books",
-            " WHERE id = $1;">>, [int], [1]} == select_pk(book(1))
-    ).

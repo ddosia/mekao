@@ -120,6 +120,14 @@ select_pk_test() ->
         mk_call(select_pk, book(1))
     ).
 
+insert_test() ->
+    Book = #book{isbn = Isbn, title = Title, author = Author} = book(1),
+    ?assertEqual(
+        {<<"INSERT INTO books (isbn, title, author) VALUES ($1, $2, $3);">>,
+            [varchar, varchar, varchar], [Isbn, Title, Author]},
+        mk_call(insert, Book)
+    ).
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================

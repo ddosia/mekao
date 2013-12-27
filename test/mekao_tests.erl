@@ -12,7 +12,7 @@
         #mekao_column{name = <<"isbn">>, type = varchar},
         #mekao_column{name = <<"title">>, type = varchar},
         #mekao_column{name = <<"author">>, type = varchar},
-        #mekao_column{name = <<"created">>, type = varchar, ro = true}
+        #mekao_column{name = <<"created">>, type = datetime, ro = true}
     ]
 }).
 

@@ -26,7 +26,7 @@
                           | #mekao_update{}
                           | #mekao_delete{}
                           ).
-%% builded query
+%% built query
 -type b_query() :: 'query'(iolist()).
 
 -export_type([
@@ -169,11 +169,12 @@ prepare(insert, SkipFun, E, Table, S) ->
     #mekao_query{
        body     = Q,
        types    = Types,
-       values   = Vals
+       values   = Vals,
+       next_ph_num = length(PHs) + 1
     };
 
 prepare(select, SkipFun, E, Table, S) ->
-    QData = {_, _, Types, Vals} = qdata(
+    QData = {_, PHs, Types, Vals} = qdata(
         SkipFun, 1, E, Table, S
     ),
     Q = #mekao_select{
@@ -184,16 +185,21 @@ prepare(select, SkipFun, E, Table, S) ->
     #mekao_query{
        body     = Q,
        types    = Types,
-       values   = Vals
+       values   = Vals,
+       next_ph_num = length(PHs) + 1
     };
 
 prepare(update, {SetSkipFun, WhereSkipFun}, {SetE, WhereE}, Table, S) ->
     SetQData = {_, SetPHs, SetTypes, SetVals} = qdata(
         SetSkipFun, 1, SetE, Table, S
     ),
-    WhereQData = {_, _, WhereTypes, WhereVals} = qdata(
-        WhereSkipFun, length(SetPHs) + 1, WhereE, Table, S
+    SetPHsLen = length(SetPHs),
+
+    WhereQData = {_, WherePHs, WhereTypes, WhereVals} = qdata(
+        WhereSkipFun, SetPHsLen + 1, WhereE, Table, S
     ),
+    WherePHsLen = length(WherePHs),
+
     Q = #mekao_update{
         table       = Table#mekao_table.name,
         set         = set(SetQData),
@@ -203,11 +209,12 @@ prepare(update, {SetSkipFun, WhereSkipFun}, {SetE, WhereE}, Table, S) ->
     #mekao_query{
        body     = Q,
        types    = SetTypes ++ WhereTypes,
-       values   = SetVals ++ WhereVals
+       values   = SetVals ++ WhereVals,
+       next_ph_num = SetPHsLen + WherePHsLen + 1
     };
 
 prepare(delete, SkipFun, E, Table, S) ->
-    QData = {_, _, Types, Vals} = qdata(
+    QData = {_, PHs, Types, Vals} = qdata(
         SkipFun, 1, E, Table, S
     ),
     Q = #mekao_delete{
@@ -218,7 +225,8 @@ prepare(delete, SkipFun, E, Table, S) ->
     #mekao_query{
        body     = Q,
        types    = Types,
-       values   = Vals
+       values   = Vals,
+       next_ph_num = length(PHs) + 1
     }.
 
 

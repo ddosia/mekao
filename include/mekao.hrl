@@ -35,8 +35,9 @@
 
 -record(mekao_query, {
     body,
-    types  = [] :: [term()],
-    values = [] :: [term()]
+    types  = []     :: [term()],
+    values = []     :: [term()],
+    next_ph_num = 1 :: non_neg_integer()
 }).
 
 -record(mekao_select, {

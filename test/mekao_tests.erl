@@ -203,7 +203,7 @@ placeholder_test() ->
     ).
 
 
-prepare_select_test() ->
+prepare_select1_test() ->
     #book{author = Author, isbn = Isbn} = book(1),
     Q = #mekao_query{body = QBody = #mekao_select{where = Where}} =
         mekao:prepare(
@@ -228,6 +228,39 @@ prepare_select_test() ->
         NewQ#mekao_query{body = iolist_to_binary(NewQBody)}
     ).
 
+prepare_select2_test() ->
+    #book{author = Author} = book(1),
+    Author2 = <<"Francesco Cesarini">>,
+
+    Q = #mekao_query{
+        body = QBody = #mekao_select{where = Where},
+        types = Types,
+        values = Vals,
+        next_ph_num = Num
+    } = mekao:prepare(
+        select, #book{author = Author, _ = '$skip'}, ?TABLE_BOOKS, ?S
+    ),
+
+    NewQ = #mekao_query{body = NewQBody} =
+        mekao:build(Q#mekao_query{
+            body = QBody#mekao_select{
+                where = [Where, <<" OR author = $">>, integer_to_list(Num)]
+            }
+        }),
+
+    ?assertMatch(
+        #mekao_query{
+            body = <<"SELECT id, isbn, title, author, created FROM books",
+                    " WHERE author = $1 OR author = $2;">>,
+            types = [varchar, int],
+            values = [Author, Author2]
+        },
+        NewQ#mekao_query{
+            body = iolist_to_binary(NewQBody),
+            types = Types ++ [int],
+            values = Vals ++ [Author2]
+        }
+    ).
 
 select_pk_test() ->
     ?assertMatch(

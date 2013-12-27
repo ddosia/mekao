@@ -33,6 +33,12 @@
     is_null                     :: fun((Value :: term()) -> boolean())
 }).
 
+-record(mekao_query, {
+    body,
+    types  = [] :: [term()],
+    values = [] :: [term()]
+}).
+
 -record(mekao_select, {
     columns     :: iolist(),
     table       :: iolist(),

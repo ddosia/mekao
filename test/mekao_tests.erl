@@ -28,9 +28,13 @@
 is_null_test_() ->
     Null = erlang:make_ref(), [
         %% TODO: extend this to test UPDATE and DELETE
-        ?_assertEqual(
-            {<<"SELECT id, isbn, title, author, created FROM books",
-               " WHERE id IS NULL;">>, [int], [Null]},
+        ?_assertMatch(
+            #mekao_query{
+                body = <<"SELECT id, isbn, title, author, created FROM books",
+                        " WHERE id IS NULL;">>,
+                types = [int],
+                values = [Null]
+            },
             mk_call(select_pk, book(Null), ?TABLE_BOOKS, ?S#mekao_settings{
                 is_null = fun(V) -> V == Null end
             })
@@ -40,8 +44,12 @@ is_null_test_() ->
 
 empty_where_test_() -> [
     %% TODO: extend this to test UPDATE and DELETE
-    ?_assertEqual(
-        {<<"SELECT id, isbn, title, author, created FROM books;">>, [], []},
+    ?_assertMatch(
+        #mekao_query{
+            body = <<"SELECT id, isbn, title, author, created FROM books;">>,
+            types = [],
+            values = []
+        },
         mk_call(select, #book{_ = '$skip'})
     )
 ].
@@ -50,17 +58,23 @@ empty_where_test_() -> [
 skip_test_() ->
     %% TODO: extend this to test UPDATE and DELETE
     #book{author = Author, title = Title} = book(undefined), [
-        ?_assertEqual(
-            {<<"SELECT id, isbn, title, author, created FROM books",
-                " WHERE title = $1 AND author = $2;">>,
-                [varchar, varchar], [Title, Author]},
+        ?_assertMatch(
+            #mekao_query{
+                body = <<"SELECT id, isbn, title, author, created FROM books",
+                        " WHERE title = $1 AND author = $2;">>,
+                types = [varchar, varchar],
+                values = [Title, Author]
+            },
             mk_call(
                 select, #book{author = Author, title = Title, _ = '$skip'}
             )
         ),
-        ?_assertEqual(
-            {<<"INSERT INTO books (title, author) VALUES ($1, $2);">>,
-                [varchar, varchar], [Title, Author]},
+        ?_assertMatch(
+            #mekao_query{
+                body = <<"INSERT INTO books (title, author) VALUES ($1, $2);">>,
+                types = [varchar, varchar],
+                values = [Title, Author]
+            },
             mk_call(
                 insert, #book{author = Author, title = Title, _ = '$skip'}
             )
@@ -86,26 +100,36 @@ returning_test_() ->
         end,
     Book = #book{isbn = Isbn, title = Title, author = Author} = book(1),
     [
-        ?_assertEqual(
-            {<<"INSERT INTO books (isbn, title, author)",
-                " VALUES ($1, $2, $3)"
-                " RETURNING id, isbn, title, author, created;">>,
-                [varchar, varchar, varchar], [Isbn, Title, Author]},
+        ?_assertMatch(
+            #mekao_query{
+                body = <<"INSERT INTO books (isbn, title, author)",
+                        " VALUES ($1, $2, $3)"
+                        " RETURNING id, isbn, title, author, created;">>,
+                types = [varchar, varchar, varchar],
+                values = [Isbn, Title, Author]
+            },
             mk_call(insert, book(1), ?TABLE_BOOKS, ?S#mekao_settings{
                 returning = RetFun
             })
         ),
-        ?_assertEqual(
-            {<<"UPDATE books SET isbn = $1, title = $2, author = $3",
-                " WHERE id = $4",
-                " RETURNING id, isbn, title, author, created;">>,
-                [varchar, varchar, varchar, int], [Isbn, Title, Author, 1]},
+        ?_assertMatch(
+            #mekao_query{
+                body = <<"UPDATE books SET isbn = $1, title = $2, author = $3",
+                        " WHERE id = $4",
+                        " RETURNING id, isbn, title, author, created;">>,
+                types = [varchar, varchar, varchar, int],
+                values = [Isbn, Title, Author, 1]
+            },
             mk_call(update_pk, book(1), ?TABLE_BOOKS, ?S#mekao_settings{
                 returning = RetFun
             })
         ),
-        ?_assertEqual(
-            {<<"DELETE FROM books WHERE id = $1 RETURNING id;">>, [int], [1]},
+        ?_assertMatch(
+            #mekao_query{
+                body = <<"DELETE FROM books WHERE id = $1 RETURNING id;">>,
+                types = [int],
+                values = [1]
+            },
             mk_call(delete_pk, book(1), ?TABLE_BOOKS, ?S#mekao_settings{
                 returning = RetFun
             })
@@ -127,10 +151,13 @@ column_type_test() ->
         ]
     },
     Book = #book{isbn = Isbn, title = Title, author = Author} = book(1),
-    ?assertEqual(
-        {<<"INSERT INTO books (isbn, title, author, type)",
-            " VALUES ($1, $2, $3, $4);">>,
-            [varchar, varchar, varchar, int], [Isbn, Title, Author, 2]},
+    ?assertMatch(
+        #mekao_query{
+            body = <<"INSERT INTO books (isbn, title, author, type)",
+                    " VALUES ($1, $2, $3, $4);">>,
+            types = [varchar, varchar, varchar, int],
+            values = [Isbn, Title, Author, 2]
+        },
         mk_call(insert, erlang:append_element(Book, paperback), Table, ?S)
     ).
 
@@ -160,10 +187,15 @@ placeholder_test() ->
 
     Book = #book{isbn = Isbn, title = Title} = book(1),
 
-    ?assertEqual(
-        {<<"UPDATE books SET isbn = '", Isbn/binary, "',",
-           " title = '", Title/binary, "', author = '' WHERE id = 1;">>,
-            [varchar, varchar, varchar, int], [Isbn, Title, <<"">>, 1]},
+    QBody = <<"UPDATE books SET isbn = '", Isbn/binary, "',",
+            " title = '", Title/binary, "', author = '' WHERE id = 1;">>,
+
+    ?assertMatch(
+        #mekao_query{
+            body = QBody,
+            types = [varchar, varchar, varchar, int],
+            values = [Isbn, Title, <<"">>, 1]
+        },
         mk_call(
             update_pk, Book#book{author = undefined},
             Table#mekao_table{columns = NewCols}, S
@@ -173,51 +205,74 @@ placeholder_test() ->
 
 prepare_select_test() ->
     #book{author = Author, isbn = Isbn} = book(1),
-    {PQ, Types, Vals} = mekao:prepare(
-        select, #book{author = Author, _ = '$skip'}, ?TABLE_BOOKS, ?S
-    ),
-    #mekao_select{where = Where} = PQ,
-    Q = iolist_to_binary(mekao:build(PQ#mekao_select{
-        where = [Where, <<" AND created >= now() - interval '7 day'">>]
-    })),
-    ?assertEqual(
-        {<<"SELECT id, isbn, title, author, created FROM books",
-            " WHERE author = $1 AND created >= now() - interval '7 day';">>,
-            [varchar], [Author]},
-        {Q, Types, Vals}
+    Q = #mekao_query{body = QBody = #mekao_select{where = Where}} =
+        mekao:prepare(
+            select, #book{author = Author, _ = '$skip'}, ?TABLE_BOOKS, ?S
+        ),
+
+    NewQ = #mekao_query{body = NewQBody} =
+        mekao:build(Q#mekao_query{
+            body = QBody#mekao_select{
+                where = [Where, <<" AND created >= now() - interval '7 day'">>]
+            }
+        }),
+
+    ?assertMatch(
+        #mekao_query{
+            body = <<"SELECT id, isbn, title, author, created FROM books",
+                    " WHERE author = $1 AND created >= now() - interval",
+                    " '7 day';">>,
+            types = [varchar],
+            values = [Author]
+        },
+        NewQ#mekao_query{body = iolist_to_binary(NewQBody)}
     ).
 
 
 select_pk_test() ->
-    ?assertEqual(
-        {<<"SELECT id, isbn, title, author, created FROM books",
-            " WHERE id = $1;">>, [int], [1]},
+    ?assertMatch(
+        #mekao_query{
+            body = <<"SELECT id, isbn, title, author, created FROM books",
+                    " WHERE id = $1;">>,
+            types = [int],
+            values = [1]
+        },
         mk_call(select_pk, book(1))
     ).
 
 
 insert_test() ->
     Book = #book{isbn = Isbn, title = Title, author = Author} = book(1),
-    ?assertEqual(
-        {<<"INSERT INTO books (isbn, title, author) VALUES ($1, $2, $3);">>,
-            [varchar, varchar, varchar], [Isbn, Title, Author]},
+    ?assertMatch(
+        #mekao_query{
+            body = <<"INSERT INTO books (isbn, title, author)",
+                    " VALUES ($1, $2, $3);">>,
+            types = [varchar, varchar, varchar],
+            values = [Isbn, Title, Author]},
         mk_call(insert, Book)
     ).
 
 
 update_pk_test() ->
     Book = #book{isbn = Isbn, title = Title, author = Author} = book(1),
-    ?assertEqual(
-        {<<"UPDATE books SET isbn = $1, title = $2, author = $3",
-            " WHERE id = $4;">>,
-            [varchar, varchar, varchar, int], [Isbn, Title, Author, 1]},
+    ?assertMatch(
+        #mekao_query{
+            body = <<"UPDATE books SET isbn = $1, title = $2, author = $3",
+                    " WHERE id = $4;">>,
+            types = [varchar, varchar, varchar, int],
+            values = [Isbn, Title, Author, 1]
+        },
         mk_call(update_pk, Book)
     ).
 
 
 delete_pk_test() ->
-    ?assertEqual(
-        {<<"DELETE FROM books WHERE id = $1;">>, [int], [1]},
+    ?assertMatch(
+        #mekao_query{
+            body = <<"DELETE FROM books WHERE id = $1;">>,
+            types = [int],
+            values = [1]
+        },
         mk_call(delete_pk, book(1))
     ).
 
@@ -241,5 +296,5 @@ mk_call(CallName, E, Table) ->
     mk_call(CallName, E, Table, ?S).
 
 mk_call(CallName, E, Table, S) ->
-    {Q, Types, Vals} = mekao:CallName(E, Table, S),
-    {iolist_to_binary(Q), Types, Vals}.
+    Q = #mekao_query{body = B} = mekao:CallName(E, Table, S),
+    Q#mekao_query{body = iolist_to_binary(B)}.

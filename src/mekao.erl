@@ -13,74 +13,68 @@
 
 -include("mekao.hrl").
 
--type entity()  :: tuple().
-
 -type table()   :: #mekao_table{}.
 -type column()  :: #mekao_column{}.
 -type s()       :: #mekao_settings{}.
 
+%% generic query
+-type 'query'(Body) :: #mekao_query{body :: Body}.
+
+%% prepared query
+-type p_query() :: 'query'( #mekao_insert{}
+                          | #mekao_select{}
+                          | #mekao_update{}
+                          | #mekao_delete{}
+                          ).
+%% builded query
+-type b_query() :: 'query'(iolist()).
+
 -export_type([
     table/0,
     column/0,
-    s/0
+    s/0,
+    p_query/0,
+    b_query/0
 ]).
-
--type qdata() :: {
-    Columns      :: [iolist()],
-    Placeholders :: [iolist()],
-    Types        :: [term()],
-    Vals         :: [term()]
-}.
-
--type 'query'() :: #mekao_insert{} | #mekao_select{} | #mekao_update{}
-                 | #mekao_delete{}.
-
--type query_ret()   :: {iolist(), Types :: [term()], Vals :: [term()]}.
--type p_query_ret() :: {'query'(), Types :: [term()], Vals :: [term()]}.
 
 %% ===================================================================
 %% API functions
 %% ===================================================================
 
--spec insert(Entity :: tuple() | list(), table(), s()) -> query_ret().
+-spec insert(Entity :: tuple() | list(), table(), s()) -> b_query().
 %% @doc Inserts entity, omits columns with `$skip' value.
 insert(E, Table, S) ->
-    {Q, Types, Vals} = prepare(insert, E, Table, S),
-    {build(Q), Types, Vals}.
+    build(prepare(insert, E, Table, S)).
 
 
--spec select_pk(Entity :: tuple() | list(), table(), s()) -> query_ret().
+-spec select_pk(Entity :: tuple() | list(), table(), s()) -> b_query().
 %% @doc Reads entity by it's primary key.
 select_pk(E, Table, S) ->
-    {Q, Types, Vals} = prepare(select_pk, E, Table, S),
-    {build(Q), Types, Vals}.
+    build(prepare(select_pk, E, Table, S)).
 
 
--spec select(Entity :: tuple() | list(), table(), s()) -> query_ret().
+-spec select(Entity :: tuple() | list(), table(), s()) -> b_query().
 %% @doc Selects several entities, omits columns with `$skip' value.
 select(E, Table, S) ->
-    {Q, Types, Vals} = prepare(select, E, Table, S),
-    {build(Q), Types, Vals}.
+    build(prepare(select, E, Table, S)).
 
 
--spec update_pk(Entity :: tuple() | list(), table(), s()) -> query_ret().
+-spec update_pk(Entity :: tuple() | list(), table(), s()) -> b_query().
 %% @doc Updates entity by it's primary key, omits columns with `$skip' value.
 update_pk(E, Table, S) ->
-    {Q, Types, Vals} = prepare(update_pk, E, Table, S),
-    {build(Q), Types, Vals}.
+    build(prepare(update_pk, E, Table, S)).
 
 
--spec delete_pk(Entity :: tuple() | list(), table(), s()) -> query_ret().
+-spec delete_pk(Entity :: tuple() | list(), table(), s()) -> b_query().
 %% @doc Deletes entity by primary key.
 delete_pk(E, Table, S) ->
-    {Q, Types, Vals} = prepare(delete_pk, E, Table, S),
-    {build(Q), Types, Vals}.
+    build(prepare(delete_pk, E, Table, S)).
 
 
 -spec prepare( insert | select_pk | select | update_pk | delete_pk
              , Entity :: tuple() | list()
              , table(), s()
-             ) -> p_query_ret().
+             ) -> p_query().
 prepare(insert, E, Table, S) ->
     SkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
     prepare(insert, SkipFun, E, Table, S);
@@ -103,50 +97,60 @@ prepare(delete_pk, E, Table, S) ->
     prepare(delete, SkipFun, E, Table, S).
 
 
--spec build('query'()) -> iolist().
-build(Select) when is_record(Select, mekao_select) ->
+-spec build(p_query()) -> b_query().
+build(Q = #mekao_query{body = Select}) when is_record(Select, mekao_select) ->
     #mekao_select{
         columns = Columns,
         table   = Table,
         where   = Where
     } = Select,
+    Q#mekao_query{
+        body = [
+            <<"SELECT ">>, Columns, <<" FROM ">>, Table,
+            build_where(Where), <<";">>
+        ]
+    };
 
-    [<<"SELECT ">>, Columns, <<" FROM ">>, Table, build_where(Where), <<";">>];
-
-build(Insert) when is_record(Insert, mekao_insert) ->
+build(Q = #mekao_query{body = Insert}) when is_record(Insert, mekao_insert) ->
     #mekao_insert{
         table        = Table,
         columns      = Columns,
         values       = Values,
         returning    = Return
     } = Insert,
-    [
-        <<"INSERT INTO ">>, Table, <<" (">>, Columns, <<") VALUES (">>,
-        Values, <<")">>, build_return(Return), <<";">>
-    ];
+    Q#mekao_query{
+        body = [
+            <<"INSERT INTO ">>, Table, <<" (">>, Columns, <<") VALUES (">>,
+            Values, <<")">>, build_return(Return), <<";">>
+        ]
+    };
 
-build(Update) when is_record(Update, mekao_update) ->
+build(Q = #mekao_query{body = Update}) when is_record(Update, mekao_update) ->
     #mekao_update{
         table       = Table,
         set         = Set,
         where       = Where,
         returning   = Return
     } = Update,
-    [
-        <<"UPDATE ">>, Table, <<" SET ">>, Set,
-        build_where(Where), build_return(Return), <<";">>
-    ];
+    Q#mekao_query{
+        body = [
+            <<"UPDATE ">>, Table, <<" SET ">>, Set,
+            build_where(Where), build_return(Return), <<";">>
+        ]
+    };
 
-build(Delete) when is_record(Delete, mekao_delete) ->
+build(Q = #mekao_query{body = Delete}) when is_record(Delete, mekao_delete) ->
     #mekao_delete{
         table       = Table,
         where       = Where,
         returning   = Return
     } = Delete,
-    [
-        <<"DELETE FROM ">>, Table, build_where(Where),
-        build_return(Return), <<";">>
-    ].
+    Q#mekao_query{
+        body = [
+            <<"DELETE FROM ">>, Table, build_where(Where),
+            build_return(Return), <<";">>
+        ]
+    }.
 
 %%%===================================================================
 %%% Internal functions
@@ -162,7 +166,11 @@ prepare(insert, SkipFun, E, Table, S) ->
         values      = mekao_utils:intersperse(PHs, <<", ">>),
         returning   = returning(insert, Table, S)
     },
-    {Q, Types, Vals};
+    #mekao_query{
+       body     = Q,
+       types    = Types,
+       values   = Vals
+    };
 
 prepare(select, SkipFun, E, Table, S) ->
     QData = {_, _, Types, Vals} = qdata(
@@ -173,7 +181,11 @@ prepare(select, SkipFun, E, Table, S) ->
         columns     = all_columns(Table),
         where       = where(QData, S)
     },
-    {Q, Types, Vals};
+    #mekao_query{
+       body     = Q,
+       types    = Types,
+       values   = Vals
+    };
 
 prepare(update, {SetSkipFun, WhereSkipFun}, {SetE, WhereE}, Table, S) ->
     SetQData = {_, SetPHs, SetTypes, SetVals} = qdata(
@@ -188,7 +200,11 @@ prepare(update, {SetSkipFun, WhereSkipFun}, {SetE, WhereE}, Table, S) ->
         where       = where(WhereQData, S),
         returning   = returning(update, Table, S)
     },
-    {Q, SetTypes ++ WhereTypes, SetVals ++ WhereVals};
+    #mekao_query{
+       body     = Q,
+       types    = SetTypes ++ WhereTypes,
+       values   = SetVals ++ WhereVals
+    };
 
 prepare(delete, SkipFun, E, Table, S) ->
     QData = {_, _, Types, Vals} = qdata(
@@ -199,15 +215,13 @@ prepare(delete, SkipFun, E, Table, S) ->
         where       = where(QData, S),
         returning   = returning(delete, Table, S)
     },
-    {Q, Types, Vals}.
+    #mekao_query{
+       body     = Q,
+       types    = Types,
+       values   = Vals
+    }.
 
 
--spec qdata( fun((column(), Val :: term()) -> boolean())
-           , non_neg_integer()
-           , entity() | [term()]
-           , table()  | [column()]
-           , s()
-           ) -> qdata().
 qdata(SkipFun, Num, E, Table, S) when is_tuple(E) ->
     [_EntityName | AllVals] = tuple_to_list(E),
     qdata(SkipFun, Num, AllVals, Table, S);

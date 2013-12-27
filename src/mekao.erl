@@ -141,7 +141,10 @@ build(Delete) when is_record(Delete, mekao_delete) ->
         where       = Where,
         returning   = Return
     } = Delete,
-    [<<"DELETE FROM ">>, Table, build_where(Where), build_return(Return)].
+    [
+        <<"DELETE FROM ">>, Table, build_where(Where),
+        build_return(Return), <<";">>
+    ].
 
 %%%===================================================================
 %%% Internal functions

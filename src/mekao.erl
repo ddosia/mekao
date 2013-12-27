@@ -62,11 +62,13 @@ select(E, Table, S) ->
     {Q, Types, Vals} = prepare(select, E, Table, S),
     {build(Q), Types, Vals}.
 
+
 -spec update_pk(Entity :: tuple() | list(), table(), s()) -> query_ret().
 %% @doc Updates entity by it's primary key, omits columns with `$skip' value.
 update_pk(E, Table, S) ->
     {Q, Types, Vals} = prepare(update_pk, E, Table, S),
     {build(Q), Types, Vals}.
+
 
 -spec delete_pk(Entity :: tuple() | list(), table(), s()) -> query_ret().
 %% @doc Deletes entity by primary key.

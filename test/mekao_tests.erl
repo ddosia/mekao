@@ -171,12 +171,30 @@ placeholder_test() ->
     ).
 
 
+prepare_select_test() ->
+    #book{author = Author, isbn = Isbn} = book(1),
+    {PQ, Types, Vals} = mekao:prepare(
+        select, #book{author = Author, _ = '$skip'}, ?TABLE_BOOKS, ?S
+    ),
+    #mekao_select{where = Where} = PQ,
+    Q = iolist_to_binary(mekao:build(PQ#mekao_select{
+        where = [Where, <<" AND created >= now() - interval '7 day'">>]
+    })),
+    ?assertEqual(
+        {<<"SELECT id, isbn, title, author, created FROM books",
+            " WHERE author = $1 AND created >= now() - interval '7 day';">>,
+            [varchar], [Author]},
+        {Q, Types, Vals}
+    ).
+
+
 select_pk_test() ->
     ?assertEqual(
         {<<"SELECT id, isbn, title, author, created FROM books",
             " WHERE id = $1;">>, [int], [1]},
         mk_call(select_pk, book(1))
     ).
+
 
 insert_test() ->
     Book = #book{isbn = Isbn, title = Title, author = Author} = book(1),
@@ -186,6 +204,7 @@ insert_test() ->
         mk_call(insert, Book)
     ).
 
+
 update_pk_test() ->
     Book = #book{isbn = Isbn, title = Title, author = Author} = book(1),
     ?assertEqual(
@@ -194,6 +213,7 @@ update_pk_test() ->
             [varchar, varchar, varchar, int], [Isbn, Title, Author, 1]},
         mk_call(update_pk, Book)
     ).
+
 
 delete_pk_test() ->
     ?assertEqual(

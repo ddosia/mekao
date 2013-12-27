@@ -128,6 +128,15 @@ insert_test() ->
         mk_call(insert, Book)
     ).
 
+update_pk_test() ->
+    Book = #book{isbn = Isbn, title = Title, author = Author} = book(1),
+    ?assertEqual(
+        {<<"UPDATE books SET isbn = $1, title = $2, author = $3",
+            " WHERE id = $4;">>,
+            [varchar, varchar, varchar, int], [Isbn, Title, Author, 1]},
+        mk_call(update_pk, Book)
+    ).
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================

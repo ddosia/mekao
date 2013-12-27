@@ -229,6 +229,8 @@ qdata(SkipFun, Num, [V | Vals], [Col | Cols], S) ->
 
 
 -spec returning(insert | update | delete, table(), s()) -> iolist().
+returning(_QType, _Table, #mekao_settings{returning = undefined}) ->
+    [];
 returning(QType, Table, #mekao_settings{returning = RetFun}) ->
     RetFun(QType, Table).
 

@@ -20,7 +20,8 @@
                                         ) -> iolist()),
 
     %% forms "returning" string for insert/update queries
-    returning                   :: fun( ( insert | update | delete
+    returning                   :: undefined
+                                 | fun( ( insert | update | delete
                                         , mekao:table()
                                         ) -> iolist()),
 

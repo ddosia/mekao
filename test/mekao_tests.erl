@@ -17,7 +17,7 @@
 }).
 
 -define(S, #mekao_settings{
-    placeholder = fun (Pos, _) -> [$$ | integer_to_list(Pos)] end,
+    placeholder = fun (_, Pos, _) -> [$$ | integer_to_list(Pos)] end,
     is_null     = fun(V) -> V == undefined end
 }).
 
@@ -132,6 +132,42 @@ column_type_test() ->
             " VALUES ($1, $2, $3, $4);">>,
             [varchar, varchar, varchar, int], [Isbn, Title, Author, 2]},
         mk_call(insert, erlang:append_element(Book, paperback), Table, ?S)
+    ).
+
+placeholder_test() ->
+    S = ?S#mekao_settings{
+        placeholder =
+            fun
+                (#mekao_column{type = int}, _Pos, Val) ->
+                    integer_to_list(Val);
+                (#mekao_column{type = varchar}, _Pos, Val) ->
+                    [$', Val, $']
+            end
+    },
+
+    Table = #mekao_table{columns = Cols} = ?TABLE_BOOKS,
+    AuthorCol = lists:keyfind(<<"author">>, #mekao_column.name, Cols),
+    NewAuthorCol = AuthorCol#mekao_column{
+        transform =
+            fun
+                (undefined) -> <<"">>;
+                (Val) -> Val
+            end
+    },
+    NewCols = lists:keyreplace(
+        <<"author">>, #mekao_column.name, Cols, NewAuthorCol
+    ),
+
+    Book = #book{isbn = Isbn, title = Title} = book(1),
+
+    ?assertEqual(
+        {<<"UPDATE books SET isbn = '", Isbn/binary, "',",
+           " title = '", Title/binary, "', author = '' WHERE id = 1;">>,
+            [varchar, varchar, varchar, int], [Isbn, Title, <<"">>, 1]},
+        mk_call(
+            update_pk, Book#book{author = undefined},
+            Table#mekao_table{columns = NewCols}, S
+        )
     ).
 
 

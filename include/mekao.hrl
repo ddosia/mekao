@@ -17,7 +17,8 @@
     %% different db drivers have different placeholders.
     %% pgsql accepts placeholders in form of `"$1, $2, ... $N"'.
     %% odbc driver accepts phs in form of `"?, ?, ..., ?"'
-    placeholder                 :: fun( ( Num :: non_neg_integer()
+    placeholder                 :: fun( ( mekao:column()
+                                        , Num :: non_neg_integer()
                                         , Val :: term()
                                         ) -> iolist()),
 

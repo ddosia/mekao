@@ -26,18 +26,32 @@
 %%%===================================================================
 
 is_null_test_() ->
-    Null = erlang:make_ref(), [
+    Null = erlang:make_ref(),
+    S = ?S#mekao_settings{is_null = fun(V) -> V == Null end},
+    [
         %% TODO: extend this to test UPDATE and DELETE
         ?_assertMatch(
             #mekao_query{
                 body = <<"SELECT id, isbn, title, author, created FROM books",
-                        " WHERE id IS NULL">>,
-                types = [int],
+                        " WHERE author IS NULL">>,
+                types = [varchar],
                 values = [Null]
             },
-            mk_call(select_pk, book(Null), ?TABLE_BOOKS, ?S#mekao_settings{
-                is_null = fun(V) -> V == Null end
-            })
+            mk_call(
+                select, #book{author = Null, _ = '$skip'}, ?TABLE_BOOKS, S
+            )
+        ),
+        ?_assertMatch(
+            #mekao_query{
+                body = <<"SELECT id, isbn, title, author, created FROM books",
+                        " WHERE author IS NOT NULL">>,
+                types = [varchar],
+                values = [Null]
+            },
+            mk_call(
+                select, #book{author = {'$predicate', '<>', Null}, _ = '$skip'},
+                ?TABLE_BOOKS, S
+            )
         )
     ].
 
@@ -203,6 +217,26 @@ placeholder_test() ->
     ).
 
 
+predicate_test_() ->
+    Ops = ['=', '<>', '>', '>=', '<', '<='],
+    DT = {{2013, 1, 1}, {0, 0, 0}},
+    lists:map(
+        fun(Op) ->
+            OpBin = atom_to_binary(Op, utf8),
+            QBody = <<"SELECT id, isbn, title, author, created FROM books",
+                    " WHERE created ", OpBin/binary," $1">>,
+            ?_assertMatch(
+                #mekao_query{
+                    body = QBody, types = [datetime], values = [DT]
+                },
+                mk_call(
+                    select, #book{created = {'$predicate', Op, DT}, _ = '$skip'}
+                )
+            )
+        end, Ops
+    ).
+
+
 prepare_select1_test() ->
     #book{author = Author, isbn = Isbn} = book(1),
     Q = #mekao_query{body = QBody = #mekao_select{where = Where}} =
@@ -261,6 +295,7 @@ prepare_select2_test() ->
             values = Vals ++ [Author2]
         }
     ).
+
 
 select_pk_test() ->
     ?assertMatch(

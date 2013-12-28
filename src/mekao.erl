@@ -106,11 +106,11 @@ prepare(insert, E, Table, S) ->
     };
 
 prepare(select, E, Table, S) ->
-    QData = {_, PHs, Types, Vals} = qdata(1, E, Table, S),
+    {Where, {_, PHs, Types, Vals}} = where(qdata(1, E, Table, S), S),
     Q = #mekao_select{
         table       = Table#mekao_table.name,
         columns     = all_columns(Table),
-        where       = where(QData, S)
+        where       = Where
     },
     #mekao_query{
        body     = Q,
@@ -123,15 +123,15 @@ prepare(update, {SetE, WhereE}, Table, S) ->
     SetQData = {_, SetPHs, SetTypes, SetVals} = qdata(1, SetE, Table, S),
     SetPHsLen = length(SetPHs),
 
-    WhereQData = {_, WherePHs, WhereTypes, WhereVals} = qdata(
-        SetPHsLen + 1, WhereE, Table, S
-    ),
+    {Where, {_, WherePHs, WhereTypes, WhereVals}}
+        = where(qdata(SetPHsLen + 1, WhereE, Table, S), S),
+
     WherePHsLen = length(WherePHs),
 
     Q = #mekao_update{
         table       = Table#mekao_table.name,
         set         = set(SetQData),
-        where       = where(WhereQData, S),
+        where       = Where,
         returning   = returning(update, Table, S)
     },
     #mekao_query{
@@ -142,10 +142,10 @@ prepare(update, {SetE, WhereE}, Table, S) ->
     };
 
 prepare(delete, E, Table, S) ->
-    QData = {_, PHs, Types, Vals} = qdata(1, E, Table, S),
+    {Where, {_, PHs, Types, Vals}} = where(qdata(1, E, Table, S), S),
     Q = #mekao_delete{
         table       = Table#mekao_table.name,
-        where       = where(QData, S),
+        where       = Where,
         returning   = returning(delete, Table, S)
     },
     #mekao_query{
@@ -248,8 +248,10 @@ qdata(_, [], [], _) ->
 qdata(Num, ['$skip' | Vals], [_Col | Cols], S) ->
     qdata(Num, Vals, Cols, S);
 
-qdata(Num, [V | Vals], [Col | Cols], S) ->
+qdata(Num, [Pred | Vals], [Col | Cols], S) ->
     #mekao_column{type = T, name = CName, transform = TrFun} = Col,
+
+    V = predicate_val(Pred),
     NewV =
         if TrFun == undefined ->
             V;
@@ -257,10 +259,11 @@ qdata(Num, [V | Vals], [Col | Cols], S) ->
             TrFun(V)
         end,
     PH = (S#mekao_settings.placeholder)(Col, Num, NewV),
+    NewPred = set_predicate_val(Pred, NewV),
     {ResCols, ResPHs, ResTypes, ResVals} = qdata(
         Num + 1, Vals, Cols, S
     ),
-    {[CName | ResCols], [PH | ResPHs], [T | ResTypes], [NewV | ResVals]}.
+    {[CName | ResCols], [PH | ResPHs], [T | ResTypes], [NewPred | ResVals]}.
 
 
 -spec returning(insert | update | delete, table(), s()) -> iolist().
@@ -279,17 +282,40 @@ all_columns(Columns) ->
     ).
 
 
-where(QData, #mekao_settings{is_null = IsNull}) ->
-    mekao_utils:intersperse4(
-        QData,
-        <<" AND ">>,
-        fun ({C, PH, _T, V}) ->
-            case IsNull(V) of
-                false -> [C, <<" = ">>, PH];
-                true -> [C, <<" IS NULL">>]
-            end
-        end
-    ).
+where(QData = {[], [], [], []}, _S) ->
+    {[], QData};
+
+where({[C], [PH], [T], [V]}, S) ->
+    {W, {NewC, NewPH, NewT, NewV}} = predicate({C, PH, T, V}, S),
+    {[W], {[NewC], [NewPH], [NewT], [NewV]}};
+
+where({[C | Cs], [PH | PHs], [T | Types], [V | Vals]}, S) ->
+    {W, {NewC, NewPH, NewT, NewV}} = predicate({C, PH, T, V}, S),
+    {Ws, {NewCs, NewPHs, NewTypes, NewVals}} = where({Cs, PHs, Types, Vals}, S),
+    {[W, <<" AND ">> | Ws],
+        {[NewC | NewCs], [NewPH | NewPHs], [NewT | NewTypes], [NewV | NewVals]}}.
+
+%% TODO: add NOT, IN, ANY, ALL, BETWEEN, LIKE handling
+predicate({C, PH, T, {'$predicate', Op, V}}, S) when Op == '='; Op == '<>' ->
+    IsNull = (S#mekao_settings.is_null)(V),
+    if not IsNull ->
+        {[C, op_to_bin(Op), PH], {C, PH, T, V}};
+    Op == '=' ->
+        {[C, <<" IS NULL">>], {C, PH, T, V}};
+    Op == '<>' ->
+        {[C, <<" IS NOT NULL">>], {C, PH, T, V}}
+    end;
+predicate({C, PH, T, {'$predicate', OP, V}},  _S) ->
+    {[C, op_to_bin(OP), PH],  {C, PH, T, V}};
+predicate({C, PH, T, V}, S) ->
+    predicate({C, PH, T, {'$predicate', '=', V}}, S).
+
+op_to_bin('=')  -> <<" = ">>;
+op_to_bin('<>') -> <<" <> ">>;
+op_to_bin('>')  -> <<" > ">>;
+op_to_bin('>=') -> <<" >= ">>;
+op_to_bin('<')  -> <<" < ">>;
+op_to_bin('<=') -> <<" <= ">>.
 
 build_return([]) ->
     <<>>;
@@ -306,3 +332,13 @@ set(QData) ->
         QData, <<", ">>,
         fun ({C, PH, _T, _V}) -> [C, <<" = ">>, PH] end
     ).
+
+predicate_val({'$predicate', _, V}) ->
+    V;
+predicate_val(V) ->
+    V.
+
+set_predicate_val({'$predicate', Op, _}, NewV) ->
+    {'$predicate', Op, NewV};
+set_predicate_val(_, NewV) ->
+    NewV.

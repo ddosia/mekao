@@ -286,17 +286,27 @@ insert_test() ->
     ).
 
 
-update_pk_test() ->
+update_pk_test_() ->
     Book = #book{isbn = Isbn, title = Title, author = Author} = book(1),
-    ?assertMatch(
-        #mekao_query{
-            body = <<"UPDATE books SET isbn = $1, title = $2, author = $3",
-                    " WHERE id = $4;">>,
-            types = [varchar, varchar, varchar, int],
-            values = [Isbn, Title, Author, 1]
-        },
-        mk_call(update_pk, Book)
-    ).
+    [
+        ?_assertMatch(
+            #mekao_query{
+                body = <<"UPDATE books SET isbn = $1, title = $2, author = $3",
+                        " WHERE id = $4;">>,
+                types = [varchar, varchar, varchar, int],
+                values = [Isbn, Title, Author, 1]
+            },
+            mk_call(update_pk, Book)
+        ),
+        ?_assertMatch(
+            #mekao_query{
+                body = <<"UPDATE books SET title = $1 WHERE id = $2;">>,
+                types = [varchar, int],
+                values = [Title, 1]
+            },
+            mk_call(update_pk_diff, {Book#book{title = <<"Unknown">>}, Book})
+        )
+    ].
 
 
 delete_pk_test() ->

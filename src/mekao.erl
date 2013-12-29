@@ -5,6 +5,7 @@
     select_pk/3, select/3,
     insert/3,
     update_pk/3,
+    update_pk_diff/3,
     delete_pk/3,
 
     prepare/4,
@@ -69,6 +70,14 @@ update_pk(E, Table, S) ->
     WhereSkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
     EE = {skip(E, Table, SetSkipFun), skip(E, Table, WhereSkipFun)},
     build(prepare(update, EE, Table, S)).
+
+
+-spec update_pk_diff( { EntityOld :: tuple() | list(),
+                        EntityNew :: tuple() | list() }
+                    , table(), s()) -> b_query().
+%% @doc Updates only changed fields by primary key.
+update_pk_diff({E1, E2}, Table, S) ->
+    update_pk(mekao_utils:e_diff(E1, E2, Table), Table, S).
 
 
 -spec delete_pk(Entity :: tuple() | list(), table(), s()) -> b_query().

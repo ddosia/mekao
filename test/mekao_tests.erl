@@ -31,7 +31,7 @@ is_null_test_() ->
         ?_assertMatch(
             #mekao_query{
                 body = <<"SELECT id, isbn, title, author, created FROM books",
-                        " WHERE id IS NULL;">>,
+                        " WHERE id IS NULL">>,
                 types = [int],
                 values = [Null]
             },
@@ -46,7 +46,7 @@ empty_where_test_() -> [
     %% TODO: extend this to test UPDATE and DELETE
     ?_assertMatch(
         #mekao_query{
-            body = <<"SELECT id, isbn, title, author, created FROM books;">>,
+            body = <<"SELECT id, isbn, title, author, created FROM books">>,
             types = [],
             values = []
         },
@@ -61,7 +61,7 @@ skip_test_() ->
         ?_assertMatch(
             #mekao_query{
                 body = <<"SELECT id, isbn, title, author, created FROM books",
-                        " WHERE title = $1 AND author = $2;">>,
+                        " WHERE title = $1 AND author = $2">>,
                 types = [varchar, varchar],
                 values = [Title, Author]
             },
@@ -71,7 +71,7 @@ skip_test_() ->
         ),
         ?_assertMatch(
             #mekao_query{
-                body = <<"INSERT INTO books (title, author) VALUES ($1, $2);">>,
+                body = <<"INSERT INTO books (title, author) VALUES ($1, $2)">>,
                 types = [varchar, varchar],
                 values = [Title, Author]
             },
@@ -104,7 +104,7 @@ returning_test_() ->
             #mekao_query{
                 body = <<"INSERT INTO books (isbn, title, author)",
                         " VALUES ($1, $2, $3)"
-                        " RETURNING id, isbn, title, author, created;">>,
+                        " RETURNING id, isbn, title, author, created">>,
                 types = [varchar, varchar, varchar],
                 values = [Isbn, Title, Author]
             },
@@ -116,7 +116,7 @@ returning_test_() ->
             #mekao_query{
                 body = <<"UPDATE books SET isbn = $1, title = $2, author = $3",
                         " WHERE id = $4",
-                        " RETURNING id, isbn, title, author, created;">>,
+                        " RETURNING id, isbn, title, author, created">>,
                 types = [varchar, varchar, varchar, int],
                 values = [Isbn, Title, Author, 1]
             },
@@ -126,7 +126,7 @@ returning_test_() ->
         ),
         ?_assertMatch(
             #mekao_query{
-                body = <<"DELETE FROM books WHERE id = $1 RETURNING id;">>,
+                body = <<"DELETE FROM books WHERE id = $1 RETURNING id">>,
                 types = [int],
                 values = [1]
             },
@@ -154,7 +154,7 @@ column_type_test() ->
     ?assertMatch(
         #mekao_query{
             body = <<"INSERT INTO books (isbn, title, author, type)",
-                    " VALUES ($1, $2, $3, $4);">>,
+                    " VALUES ($1, $2, $3, $4)">>,
             types = [varchar, varchar, varchar, int],
             values = [Isbn, Title, Author, 2]
         },
@@ -188,7 +188,7 @@ placeholder_test() ->
     Book = #book{isbn = Isbn, title = Title} = book(1),
 
     QBody = <<"UPDATE books SET isbn = '", Isbn/binary, "',",
-            " title = '", Title/binary, "', author = '' WHERE id = 1;">>,
+            " title = '", Title/binary, "', author = '' WHERE id = 1">>,
 
     ?assertMatch(
         #mekao_query{
@@ -221,7 +221,7 @@ prepare_select1_test() ->
         #mekao_query{
             body = <<"SELECT id, isbn, title, author, created FROM books",
                     " WHERE author = $1 AND created >= now() - interval",
-                    " '7 day';">>,
+                    " '7 day'">>,
             types = [varchar],
             values = [Author]
         },
@@ -251,7 +251,7 @@ prepare_select2_test() ->
     ?assertMatch(
         #mekao_query{
             body = <<"SELECT id, isbn, title, author, created FROM books",
-                    " WHERE author = $1 OR author = $2;">>,
+                    " WHERE author = $1 OR author = $2">>,
             types = [varchar, int],
             values = [Author, Author2]
         },
@@ -266,7 +266,7 @@ select_pk_test() ->
     ?assertMatch(
         #mekao_query{
             body = <<"SELECT id, isbn, title, author, created FROM books",
-                    " WHERE id = $1;">>,
+                    " WHERE id = $1">>,
             types = [int],
             values = [1]
         },
@@ -279,7 +279,7 @@ insert_test() ->
     ?assertMatch(
         #mekao_query{
             body = <<"INSERT INTO books (isbn, title, author)",
-                    " VALUES ($1, $2, $3);">>,
+                    " VALUES ($1, $2, $3)">>,
             types = [varchar, varchar, varchar],
             values = [Isbn, Title, Author]},
         mk_call(insert, Book)
@@ -292,7 +292,7 @@ update_pk_test_() ->
         ?_assertMatch(
             #mekao_query{
                 body = <<"UPDATE books SET isbn = $1, title = $2, author = $3",
-                        " WHERE id = $4;">>,
+                        " WHERE id = $4">>,
                 types = [varchar, varchar, varchar, int],
                 values = [Isbn, Title, Author, 1]
             },
@@ -300,7 +300,7 @@ update_pk_test_() ->
         ),
         ?_assertMatch(
             #mekao_query{
-                body = <<"UPDATE books SET title = $1 WHERE id = $2;">>,
+                body = <<"UPDATE books SET title = $1 WHERE id = $2">>,
                 types = [varchar, int],
                 values = [Title, 1]
             },
@@ -312,7 +312,7 @@ update_pk_test_() ->
 delete_pk_test() ->
     ?assertMatch(
         #mekao_query{
-            body = <<"DELETE FROM books WHERE id = $1;">>,
+            body = <<"DELETE FROM books WHERE id = $1">>,
             types = [int],
             values = [1]
         },

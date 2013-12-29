@@ -165,8 +165,7 @@ build(Q = #mekao_query{body = Select}) when is_record(Select, mekao_select) ->
     } = Select,
     Q#mekao_query{
         body = [
-            <<"SELECT ">>, Columns, <<" FROM ">>, Table,
-            build_where(Where), <<";">>
+            <<"SELECT ">>, Columns, <<" FROM ">>, Table, build_where(Where)
         ]
     };
 
@@ -180,7 +179,7 @@ build(Q = #mekao_query{body = Insert}) when is_record(Insert, mekao_insert) ->
     Q#mekao_query{
         body = [
             <<"INSERT INTO ">>, Table, <<" (">>, Columns, <<") VALUES (">>,
-            Values, <<")">>, build_return(Return), <<";">>
+            Values, <<")">>, build_return(Return)
         ]
     };
 
@@ -194,7 +193,7 @@ build(Q = #mekao_query{body = Update}) when is_record(Update, mekao_update) ->
     Q#mekao_query{
         body = [
             <<"UPDATE ">>, Table, <<" SET ">>, Set,
-            build_where(Where), build_return(Return), <<";">>
+            build_where(Where), build_return(Return)
         ]
     };
 
@@ -207,7 +206,7 @@ build(Q = #mekao_query{body = Delete}) when is_record(Delete, mekao_delete) ->
     Q#mekao_query{
         body = [
             <<"DELETE FROM ">>, Table, build_where(Where),
-            build_return(Return), <<";">>
+            build_return(Return)
         ]
     }.
 

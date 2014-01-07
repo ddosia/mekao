@@ -58,7 +58,7 @@
 insert(E, Table, S) ->
     SkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
     build(prepare_insert(
-        skip(e2l(E), Table#mekao_table.columns, SkipFun), Table, S
+        skip(SkipFun, Table#mekao_table.columns, e2l(E)), Table, S
     )).
 
 
@@ -67,7 +67,7 @@ insert(E, Table, S) ->
 select_pk(E, Table, S) ->
     SkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
     build(prepare_select(
-        skip(e2l(E), Table#mekao_table.columns, SkipFun), Table, S
+        skip(SkipFun, Table#mekao_table.columns, e2l(E)), Table, S
     )).
 
 
@@ -76,7 +76,7 @@ select_pk(E, Table, S) ->
 select(E, Table, S) ->
     SkipFun = fun(_, V) -> V == '$skip' end,
     build(prepare_select(
-        skip(e2l(E), Table#mekao_table.columns, SkipFun), Table, S
+        skip(SkipFun, Table#mekao_table.columns, e2l(E)), Table, S
     )).
 
 
@@ -90,7 +90,7 @@ update_pk(E, Table = #mekao_table{columns = MekaoCols}, S) ->
     Vals = e2l(E),
 
     build(prepare_update(
-        skip(Vals, MekaoCols, SetSkipFun), skip(Vals, MekaoCols, WhereSkipFun),
+        skip(SetSkipFun, MekaoCols, Vals), skip(WhereSkipFun, MekaoCols, Vals),
         Table, S
     )).
 
@@ -116,7 +116,7 @@ update_pk_diff({E1, E2}, Table, S) ->
 delete_pk(E, Table, S) ->
     SkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
     build(prepare_delete(
-        skip(e2l(E), Table#mekao_table.columns, SkipFun), Table, S
+        skip(SkipFun, Table#mekao_table.columns, e2l(E)), Table, S
     )).
 
 
@@ -269,18 +269,15 @@ e2l(E) when is_tuple(E) ->
     Vals.
 
 
-skip([], [], _SkipFun) ->
-    [];
-
-skip([V | Vals], [C | Cols], SkipFun) ->
-    NewV =
-        case SkipFun(C, V) of
-            true ->
-                '$skip';
-            false ->
-                V
-        end,
-    [NewV | skip(Vals, Cols, SkipFun)].
+skip(SkipFun, Cols, Vals) ->
+    mekao_utils:map2(
+        fun(C, V) ->
+            Skip = SkipFun(C, V),
+            if  Skip -> '$skip';
+                true    -> V
+            end
+        end, Cols, Vals
+    ).
 
 
 qdata(_, [], [], _) ->

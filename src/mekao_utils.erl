@@ -6,7 +6,7 @@
     intersperse/2, intersperse/3,
     intersperse4/3,
 
-    map3/4
+    map2/3, map3/4
 ]).
 
 -include("mekao.hrl").
@@ -14,6 +14,16 @@
 %% ===================================================================
 %% API functions
 %% ===================================================================
+
+-spec map2( fun( ( V1 :: term(), V2 :: term()) -> ResV :: term() )
+          , L1 :: list(), L2 :: list()) -> list().
+
+map2(_RetFun, [], []) ->
+    [];
+
+map2(RetFun, [V1 | L1], [V2 | L2]) ->
+    [RetFun(V1, V2) | map2(RetFun, L1, L2)].
+
 
 -spec map3( fun( ( V1 :: term(), V2 :: term(), V3 :: term()) -> ResV :: term() )
           , L1 :: list(), L2 :: list(), L3 :: list()) -> list().
@@ -61,6 +71,16 @@ intersperse4({[I1 | I1s], [I2 | I2s], [I3 | I3s], [I4 | I4s]}, Sep, ValFun) ->
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
+map2_test_() ->
+    F = fun (A, B) -> A + B end,
+    [
+        ?_assertMatch([], map2(F, [], [])),
+        ?_assertMatch([3], map2(F, [1], [2])),
+        ?_assertMatch([10, 10, 10], map2(F, [1, 2, 3], [9, 8, 7])),
+        ?_assertException(error, function_clause, map2(F, [1], [])),
+        ?_assertException(error, function_clause, map2(F, [], [1]))
+    ].
 
 map3_test_() ->
     F = fun (A, B, C) -> A + B + C end,

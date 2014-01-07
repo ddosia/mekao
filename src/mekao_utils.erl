@@ -6,7 +6,7 @@
     intersperse/2, intersperse/3,
     intersperse4/3,
 
-    e_diff/3, e_diff/4
+    map3/4
 ]).
 
 -include("mekao.hrl").
@@ -15,46 +15,14 @@
 %% API functions
 %% ===================================================================
 
--spec e_diff( E1 :: tuple() | list()
-            , E2 :: tuple() | list()
-            , mekao:table() | [mekao:column()]
-            ) -> list().
-%% @doc compares not primary key columns, and if they equals
-%%      changes val to '$skip'.
-e_diff(E1, E2, Table) ->
-    RetFun =
-        fun
-            (V,  V,  #mekao_column{key = true}) -> V;
-            (V,  V,  #mekao_column{key = false}) -> '$skip';
-            (V1, V2, #mekao_column{key = false}) when V1 /= V2 -> V2
-        end,
-    e_diff(E1, E2, Table, RetFun).
+-spec map3( fun( ( V1 :: term(), V2 :: term(), V3 :: term()) -> ResV :: term() )
+          , L1 :: list(), L2 :: list(), L3 :: list()) -> list().
 
-
--spec e_diff( E1 :: tuple() | list()
-            , E2 :: tuple() | list()
-            , mekao:table() | [mekao:column()]
-            , fun( ( Val1 :: term()
-                   , Val2 :: term()
-                   , mekao:column()
-                   ) -> NewVal :: term())
-            ) -> list().
-e_diff(E1, E2, Table, RetFun) when is_tuple(E1) ->
-    [_EntityName | E1Vals] = tuple_to_list(E1),
-    e_diff(E1Vals, E2, Table, RetFun);
-
-e_diff(E1, E2, Table, RetFun) when is_tuple(E2) ->
-    [_EntityName | E2Vals] = tuple_to_list(E2),
-    e_diff(E1, E2Vals, Table, RetFun);
-
-e_diff(E1, E2, #mekao_table{columns = Cols}, RetFun) ->
-    e_diff(E1, E2, Cols, RetFun);
-
-e_diff([], [], [], _RetFun) ->
+map3(_RetFun, [], [], []) ->
     [];
 
-e_diff([V1 | E1], [V2 | E2], [C | Cols], RetFun) ->
-    [RetFun(V1, V2, C) | e_diff(E1, E2, Cols, RetFun)].
+map3(RetFun, [V1 | L1], [V2 | L2], [V3 | L3]) ->
+    [RetFun(V1, V2, V3) | map3(RetFun, L1, L2, L3)].
 
 
 -spec identity(term()) -> term().
@@ -94,26 +62,15 @@ intersperse4({[I1 | I1s], [I2 | I2s], [I3 | I3s], [I4 | I4s]}, Sep, ValFun) ->
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
-e_diff_test_() ->
-    E1 = {book, 1, Author = <<"Lev Tolstoy">>, {{1869, 1, 1}, {0, 0, 0}}},
-    E2 = {book, 1, Author, D2 = {{1869, 1, 2}, {3, 4, 5}}},
-
-    Table = #mekao_table{
-        name = <<"books">>,
-        columns = [
-            #mekao_column{name = <<"id">>, type = int, key = true},
-            #mekao_column{name = <<"author">>, type = varchar},
-            #mekao_column{name = <<"created">>, type = datetime}
-        ]
-    },
+map3_test_() ->
+    F = fun (A, B, C) -> A + B + C end,
     [
-        ?_assertMatch(
-            [1, '$skip', D2], e_diff(E1, E2, Table)
-        ),
-        ?_assertMatch(
-            ['$skip', '$skip', '$skip'],
-            e_diff(E1, E2, Table, fun(_, _, _) -> '$skip' end)
-        )
+        ?_assertMatch([], map3(F, [], [], [])),
+        ?_assertMatch([6], map3(F, [1], [2], [3])),
+        ?_assertMatch([15, 15, 15], map3(F, [1, 2, 3], [9, 8, 7], [5, 5, 5])),
+        ?_assertException(error, function_clause, map3(F, [1], [], [])),
+        ?_assertException(error, function_clause, map3(F, [], [1], [])),
+        ?_assertException(error, function_clause, map3(F, [], [], [1]))
     ].
 
 intersperse_test_() ->

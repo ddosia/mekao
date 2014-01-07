@@ -46,29 +46,42 @@
 %% @doc Inserts entity, omits columns with `$skip' value.
 insert(E, Table, S) ->
     SkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
-    build(prepare(insert, skip(E, Table, SkipFun), Table, S)).
+    build(prepare(
+        insert, skip(e2l(E), Table#mekao_table.columns, SkipFun), Table, S
+    )).
 
 
 -spec select_pk(Entity :: tuple() | list(), table(), s()) -> b_query().
 %% @doc Reads entity by it's primary key.
 select_pk(E, Table, S) ->
     SkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
-    build(prepare(select, skip(E, Table, SkipFun), Table, S)).
+    build(prepare(
+        select, skip(e2l(E), Table#mekao_table.columns, SkipFun), Table, S
+    )).
 
 
 -spec select(Entity :: tuple() | list(), table(), s()) -> b_query().
 %% @doc Selects several entities, omits columns with `$skip' value.
 select(E, Table, S) ->
     SkipFun = fun(_, V) -> V == '$skip' end,
-    build(prepare(select, skip(E, Table, SkipFun), Table, S)).
+    build(prepare(
+        select, skip(e2l(E), Table#mekao_table.columns, SkipFun), Table, S
+    )).
 
 
 -spec update_pk(Entity :: tuple() | list(), table(), s()) -> b_query().
 %% @doc Updates entity by it's primary key, omits columns with `$skip' value.
-update_pk(E, Table, S) ->
+update_pk(E, Table = #mekao_table{columns = MekaoCols}, S) ->
+
     SetSkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
     WhereSkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
-    EE = {skip(E, Table, SetSkipFun), skip(E, Table, WhereSkipFun)},
+
+    Vals = e2l(E),
+    EE = {
+        skip(Vals, MekaoCols, SetSkipFun),
+        skip(Vals, MekaoCols, WhereSkipFun)
+    },
+
     build(prepare(update, EE, Table, S)).
 
 
@@ -77,21 +90,32 @@ update_pk(E, Table, S) ->
                     , table(), s()) -> b_query().
 %% @doc Updates only changed fields by primary key.
 update_pk_diff({E1, E2}, Table, S) ->
-    update_pk(mekao_utils:e_diff(E1, E2, Table), Table, S).
+    EDiff =
+        fun
+            (V,  V,  #mekao_column{key = true}) -> V;
+            (V,  V,  #mekao_column{key = false}) -> '$skip';
+            (V1, V2, #mekao_column{key = false}) when V1 /= V2 -> V2
+        end,
+    update_pk(
+        mekao_utils:map3(EDiff, e2l(E1), e2l(E2), Table#mekao_table.columns),
+        Table, S
+    ).
 
 
 -spec delete_pk(Entity :: tuple() | list(), table(), s()) -> b_query().
 %% @doc Deletes entity by primary key.
 delete_pk(E, Table, S) ->
     SkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
-    build(prepare(delete, skip(E, Table, SkipFun), Table, S)).
+    build(prepare(
+        delete, skip(e2l(E), Table#mekao_table.columns, SkipFun), Table, S
+    )).
 
 
 -spec prepare( insert | select | update | delete
              , Entity :: tuple() | list(), table(), s()
              ) -> p_query().
 prepare(insert, E, Table, S) ->
-    {Cols, PHs, Types, Vals} = qdata(1, E, Table, S),
+    {Cols, PHs, Types, Vals} = qdata(1, e2l(E), Table#mekao_table.columns, S),
     Q = #mekao_insert{
         table       = Table#mekao_table.name,
         columns     = mekao_utils:intersperse(Cols, <<", ">>),
@@ -105,11 +129,17 @@ prepare(insert, E, Table, S) ->
        next_ph_num = length(PHs) + 1
     };
 
-prepare(select, E, Table, S) ->
-    {Where, {_, PHs, Types, Vals}} = where(qdata(1, E, Table, S), S),
+prepare(select, E, Table = #mekao_table{columns = MekaoCols}, S) ->
+    {Where, {_, PHs, Types, Vals}} = where(
+        qdata(1, e2l(E), MekaoCols, S), S
+    ),
+    AllCols = mekao_utils:intersperse(
+        MekaoCols, <<", ">>, fun(#mekao_column{name = Name}) -> Name end
+    ),
+
     Q = #mekao_select{
         table       = Table#mekao_table.name,
-        columns     = all_columns(Table),
+        columns     = AllCols,
         where       = Where
     },
     #mekao_query{
@@ -119,12 +149,14 @@ prepare(select, E, Table, S) ->
        next_ph_num = length(PHs) + 1
     };
 
-prepare(update, {SetE, WhereE}, Table, S) ->
-    SetQData = {_, SetPHs, SetTypes, SetVals} = qdata(1, SetE, Table, S),
+prepare(update, {SetE, WhereE}, Table = #mekao_table{columns = MekaoCols}, S) ->
+    SetQData = {_, SetPHs, SetTypes, SetVals} = qdata(
+        1, e2l(SetE), MekaoCols, S
+    ),
     SetPHsLen = length(SetPHs),
 
     {Where, {_, WherePHs, WhereTypes, WhereVals}}
-        = where(qdata(SetPHsLen + 1, WhereE, Table, S), S),
+        = where(qdata(SetPHsLen + 1, e2l(WhereE), MekaoCols, S), S),
 
     WherePHsLen = length(WherePHs),
 
@@ -142,7 +174,9 @@ prepare(update, {SetE, WhereE}, Table, S) ->
     };
 
 prepare(delete, E, Table, S) ->
-    {Where, {_, PHs, Types, Vals}} = where(qdata(1, E, Table, S), S),
+    {Where, {_, PHs, Types, Vals}}
+        = where(qdata(1, e2l(E), Table#mekao_table.columns, S), S),
+
     Q = #mekao_delete{
         table       = Table#mekao_table.name,
         where       = Where,
@@ -214,12 +248,13 @@ build(Q = #mekao_query{body = Delete}) when is_record(Delete, mekao_delete) ->
 %%% Internal functions
 %%%===================================================================
 
-skip(E, Table, SkipFun) when is_tuple(E) ->
-    [_EntityName | AllVals] = tuple_to_list(E),
-    skip(AllVals, Table, SkipFun);
+%% @doc entity to list
+e2l(Vals) when is_list(Vals) ->
+    Vals;
+e2l(E) when is_tuple(E) ->
+    [_EntityName | Vals] = tuple_to_list(E),
+    Vals.
 
-skip(Vals, #mekao_table{columns = Cols}, SkipFun) ->
-    skip(Vals, Cols, SkipFun);
 
 skip([], [], _SkipFun) ->
     [];
@@ -234,13 +269,6 @@ skip([V | Vals], [C | Cols], SkipFun) ->
         end,
     [NewV | skip(Vals, Cols, SkipFun)].
 
-
-qdata(Num, E, Table, S) when is_tuple(E) ->
-    [_EntityName | AllVals] = tuple_to_list(E),
-    qdata(Num, AllVals, Table, S);
-
-qdata(Num, Vals, #mekao_table{columns = Cols}, S) ->
-    qdata(Num, Vals, Cols, S);
 
 qdata(_, [], [], _) ->
     {[], [], [], []};
@@ -271,15 +299,6 @@ returning(_QType, _Table, #mekao_settings{returning = undefined}) ->
     [];
 returning(QType, Table, #mekao_settings{returning = RetFun}) ->
     RetFun(QType, Table).
-
-
--spec all_columns(table() | [column()]) -> iolist().
-all_columns(#mekao_table{columns = Columns}) ->
-    all_columns(Columns);
-all_columns(Columns) ->
-    mekao_utils:intersperse(
-        Columns, <<", ">>, fun(#mekao_column{name = Name}) -> Name end
-    ).
 
 
 where(QData = {[], [], [], []}, _S) ->

@@ -161,7 +161,7 @@ prepare_select(E, Table = #mekao_table{columns = MekaoCols}, S) ->
 
 -spec prepare_update(entity(), selector(), table(), s()) -> p_query().
 prepare_update(SetE, WhereE, Table = #mekao_table{columns = MekaoCols}, S) ->
-    SetQData = {_, SetPHs, SetTypes, SetVals} = qdata(
+    {SetCols, SetPHs, SetTypes, SetVals} = qdata(
         1, e2l(SetE), MekaoCols, S
     ),
     SetPHsLen = length(SetPHs),
@@ -171,9 +171,14 @@ prepare_update(SetE, WhereE, Table = #mekao_table{columns = MekaoCols}, S) ->
 
     WherePHsLen = length(WherePHs),
 
+    Set = mekao_utils:intersperse2(
+        fun (C, PH) -> [C, <<" = ">>, PH] end,
+        <<", ">>, SetCols, SetPHs
+    ),
+
     Q = #mekao_update{
         table       = Table#mekao_table.name,
-        set         = set(SetQData),
+        set         = Set,
         where       = Where,
         returning   = returning(update, Table, S)
     },
@@ -356,16 +361,12 @@ build_where([]) ->
 build_where(Where) ->
     [<<" WHERE ">> | Where].
 
-set(QData) ->
-    mekao_utils:intersperse4(
-        QData, <<", ">>,
-        fun ({C, PH, _T, _V}) -> [C, <<" = ">>, PH] end
-    ).
 
 predicate_val({'$predicate', _, V}) ->
     V;
 predicate_val(V) ->
     V.
+
 
 set_predicate_val({'$predicate', Op, _}, NewV) ->
     {'$predicate', Op, NewV};

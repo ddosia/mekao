@@ -4,7 +4,7 @@
 -export([
     identity/1,
     intersperse/2, intersperse/3,
-    intersperse4/3,
+    intersperse2/4,
 
     map2/3, map3/4
 ]).
@@ -53,12 +53,12 @@ intersperse([Item | Items], Sep, ValFun) ->
     [ValFun(Item), Sep | intersperse(Items, Sep, ValFun)].
 
 
-intersperse4({[], [], [], []}, _, _) ->
+intersperse2(_ValFun, _Sep, [], []) ->
     [];
-intersperse4({[I1], [I2], [I3], [I4]}, _, ValFun) ->
-    [ValFun({I1, I2, I3, I4})];
-intersperse4({[I1 | I1s], [I2 | I2s], [I3 | I3s], [I4 | I4s]}, Sep, ValFun) ->
-    [ValFun({I1, I2, I3, I4}), Sep | intersperse4({I1s, I2s, I3s, I4s}, Sep, ValFun)].
+intersperse2(ValFun, _Sep, [I1], [I2]) ->
+    [ValFun(I1, I2)];
+intersperse2(ValFun, Sep, [I1 | I1s], [I2 | I2s]) ->
+    [ValFun(I1, I2), Sep | intersperse2(ValFun, Sep, I1s, I2s)].
 
 
 %%%===================================================================
@@ -103,21 +103,16 @@ intersperse_test_() ->
         ?_assert([] == intersperse([], x, ValFun))
     ].
 
-intersperse4_test_() ->
-    L4 = {[a, b, c, d], [b, c, d, a], [c, d, a, b], [d, a, b, c]},
-
-    ValFun =
-        fun
-            ({a, _, _, _}) -> 1;
-            ({b, _, _, _}) -> 2;
-            ({c, _, _, _}) -> 3;
-            ({d, _, _, _}) -> 4
-        end,
+intersperse2_test_() ->
+    ValFun = fun (V1, V2) -> {V1, V2} end,
 
     [
-        ?_assert([1, x, 2, x, 3, x, 4] == intersperse4(L4, x, ValFun)),
-        ?_assert([1] == intersperse4({[a], [b], [c], [d]}, x, ValFun)),
-        ?_assert([] == intersperse4({[], [], [], []}, x, ValFun))
+        ?_assert(
+           intersperse2(ValFun, x, [a, b, c, d], [d, c, b, a])
+           == [{a, d}, x, {b, c}, x, {c, b}, x, {d, a}]
+        ),
+        ?_assert(intersperse2(ValFun, x, [a], [b]) == [{a, b}]),
+        ?_assert(intersperse2(ValFun, x, [], []) == [])
     ].
 
 -endif.

@@ -8,7 +8,10 @@
     update_pk_diff/3,
     delete_pk/3,
 
-    prepare/4,
+    prepare_select/3,
+    prepare_insert/3,
+    prepare_update/4,
+    prepare_delete/3,
     build/1
 ]).
 
@@ -17,6 +20,14 @@
 -type table()   :: #mekao_table{}.
 -type column()  :: #mekao_column{}.
 -type s()       :: #mekao_settings{}.
+
+-type entity()      :: tuple() | list().
+-type selector()    :: tuple() | list(predicate()).
+
+-type predicate()   :: Value :: term()
+                     | { '$predicate'
+                       , '=' | '<>' | '>' | '>=' | '<' | '<='
+                       , Value :: term() }.
 
 %% generic query
 -type 'query'(Body) :: #mekao_query{body :: Body}.
@@ -42,34 +53,34 @@
 %% API functions
 %% ===================================================================
 
--spec insert(Entity :: tuple() | list(), table(), s()) -> b_query().
+-spec insert(entity(), table(), s()) -> b_query().
 %% @doc Inserts entity, omits columns with `$skip' value.
 insert(E, Table, S) ->
     SkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
-    build(prepare(
-        insert, skip(e2l(E), Table#mekao_table.columns, SkipFun), Table, S
+    build(prepare_insert(
+        skip(e2l(E), Table#mekao_table.columns, SkipFun), Table, S
     )).
 
 
--spec select_pk(Entity :: tuple() | list(), table(), s()) -> b_query().
+-spec select_pk(selector(), table(), s()) -> b_query().
 %% @doc Reads entity by it's primary key.
 select_pk(E, Table, S) ->
     SkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
-    build(prepare(
-        select, skip(e2l(E), Table#mekao_table.columns, SkipFun), Table, S
+    build(prepare_select(
+        skip(e2l(E), Table#mekao_table.columns, SkipFun), Table, S
     )).
 
 
--spec select(Entity :: tuple() | list(), table(), s()) -> b_query().
+-spec select(selector(), table(), s()) -> b_query().
 %% @doc Selects several entities, omits columns with `$skip' value.
 select(E, Table, S) ->
     SkipFun = fun(_, V) -> V == '$skip' end,
-    build(prepare(
-        select, skip(e2l(E), Table#mekao_table.columns, SkipFun), Table, S
+    build(prepare_select(
+        skip(e2l(E), Table#mekao_table.columns, SkipFun), Table, S
     )).
 
 
--spec update_pk(Entity :: tuple() | list(), table(), s()) -> b_query().
+-spec update_pk(entity(), table(), s()) -> b_query().
 %% @doc Updates entity by it's primary key, omits columns with `$skip' value.
 update_pk(E, Table = #mekao_table{columns = MekaoCols}, S) ->
 
@@ -77,17 +88,15 @@ update_pk(E, Table = #mekao_table{columns = MekaoCols}, S) ->
     WhereSkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
 
     Vals = e2l(E),
-    EE = {
-        skip(Vals, MekaoCols, SetSkipFun),
-        skip(Vals, MekaoCols, WhereSkipFun)
-    },
 
-    build(prepare(update, EE, Table, S)).
+    build(prepare_update(
+        skip(Vals, MekaoCols, SetSkipFun), skip(Vals, MekaoCols, WhereSkipFun),
+        Table, S
+    )).
 
 
--spec update_pk_diff( { EntityOld :: tuple() | list(),
-                        EntityNew :: tuple() | list() }
-                    , table(), s()) -> b_query().
+-spec update_pk_diff( {Old :: entity(), New :: entity()}, table(), s()
+                    ) -> b_query().
 %% @doc Updates only changed fields by primary key.
 update_pk_diff({E1, E2}, Table, S) ->
     EDiff =
@@ -102,19 +111,17 @@ update_pk_diff({E1, E2}, Table, S) ->
     ).
 
 
--spec delete_pk(Entity :: tuple() | list(), table(), s()) -> b_query().
+-spec delete_pk(selector(), table(), s()) -> b_query().
 %% @doc Deletes entity by primary key.
 delete_pk(E, Table, S) ->
     SkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
-    build(prepare(
-        delete, skip(e2l(E), Table#mekao_table.columns, SkipFun), Table, S
+    build(prepare_delete(
+        skip(e2l(E), Table#mekao_table.columns, SkipFun), Table, S
     )).
 
 
--spec prepare( insert | select | update | delete
-             , Entity :: tuple() | list(), table(), s()
-             ) -> p_query().
-prepare(insert, E, Table, S) ->
+-spec prepare_insert(entity(), table(), s()) -> p_query().
+prepare_insert(E, Table, S) ->
     {Cols, PHs, Types, Vals} = qdata(1, e2l(E), Table#mekao_table.columns, S),
     Q = #mekao_insert{
         table       = Table#mekao_table.name,
@@ -127,9 +134,11 @@ prepare(insert, E, Table, S) ->
        types    = Types,
        values   = Vals,
        next_ph_num = length(PHs) + 1
-    };
+    }.
 
-prepare(select, E, Table = #mekao_table{columns = MekaoCols}, S) ->
+
+-spec prepare_select(selector(), table(), s()) -> p_query().
+prepare_select(E, Table = #mekao_table{columns = MekaoCols}, S) ->
     {Where, {_, PHs, Types, Vals}} = where(
         qdata(1, e2l(E), MekaoCols, S), S
     ),
@@ -147,9 +156,11 @@ prepare(select, E, Table = #mekao_table{columns = MekaoCols}, S) ->
        types    = Types,
        values   = Vals,
        next_ph_num = length(PHs) + 1
-    };
+    }.
 
-prepare(update, {SetE, WhereE}, Table = #mekao_table{columns = MekaoCols}, S) ->
+
+-spec prepare_update(entity(), selector(), table(), s()) -> p_query().
+prepare_update(SetE, WhereE, Table = #mekao_table{columns = MekaoCols}, S) ->
     SetQData = {_, SetPHs, SetTypes, SetVals} = qdata(
         1, e2l(SetE), MekaoCols, S
     ),
@@ -171,9 +182,11 @@ prepare(update, {SetE, WhereE}, Table = #mekao_table{columns = MekaoCols}, S) ->
        types    = SetTypes ++ WhereTypes,
        values   = SetVals ++ WhereVals,
        next_ph_num = SetPHsLen + WherePHsLen + 1
-    };
+    }.
 
-prepare(delete, E, Table, S) ->
+
+-spec prepare_delete(selector(), table(), s()) -> p_query().
+prepare_delete(E, Table, S) ->
     {Where, {_, PHs, Types, Vals}}
         = where(qdata(1, e2l(E), Table#mekao_table.columns, S), S),
 

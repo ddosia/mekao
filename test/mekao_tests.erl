@@ -240,8 +240,8 @@ predicate_test_() ->
 prepare_select1_test() ->
     #book{author = Author, isbn = Isbn} = book(1),
     Q = #mekao_query{body = QBody = #mekao_select{where = Where}} =
-        mekao:prepare(
-            select, #book{author = Author, _ = '$skip'}, ?TABLE_BOOKS, ?S
+        mekao:prepare_select(
+            #book{author = Author, _ = '$skip'}, ?TABLE_BOOKS, ?S
         ),
 
     NewQ = #mekao_query{body = NewQBody} =
@@ -271,8 +271,8 @@ prepare_select2_test() ->
         types = Types,
         values = Vals,
         next_ph_num = Num
-    } = mekao:prepare(
-        select, #book{author = Author, _ = '$skip'}, ?TABLE_BOOKS, ?S
+    } = mekao:prepare_select(
+        #book{author = Author, _ = '$skip'}, ?TABLE_BOOKS, ?S
     ),
 
     NewQ = #mekao_query{body = NewQBody} =

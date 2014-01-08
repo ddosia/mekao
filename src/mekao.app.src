@@ -1,6 +1,6 @@
 {application, mekao,
  [
-  {description, "Simple SQL entity manager"},
+  {description, "Simple SQL builder"},
   {vsn, "0.0.1"},
   {registered, []},
   {applications, [

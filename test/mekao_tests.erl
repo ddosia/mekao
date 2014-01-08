@@ -323,6 +323,10 @@ insert_test() ->
 
 update_pk_test_() ->
     Book = #book{isbn = Isbn, title = Title, author = Author} = book(1),
+    UpdatePKDiffQ = #mekao_query{body = UpdatePKDiffQBody}
+        = mekao:update_pk_diff(
+            Book#book{title = <<"Unknown">>}, Book, ?TABLE_BOOKS, ?S
+        ),
     [
         ?_assertMatch(
             #mekao_query{
@@ -339,7 +343,9 @@ update_pk_test_() ->
                 types = [varchar, int],
                 values = [Title, 1]
             },
-            mk_call(update_pk_diff, {Book#book{title = <<"Unknown">>}, Book})
+            UpdatePKDiffQ#mekao_query{
+                body = iolist_to_binary(UpdatePKDiffQBody)
+            }
         )
     ].
 

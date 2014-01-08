@@ -5,7 +5,7 @@
     select_pk/3, select/3,
     insert/3,
     update_pk/3,
-    update_pk_diff/3,
+    update_pk_diff/4,
     delete_pk/3,
 
     prepare_select/3,
@@ -95,10 +95,10 @@ update_pk(E, Table = #mekao_table{columns = MekaoCols}, S) ->
     )).
 
 
--spec update_pk_diff( {Old :: entity(), New :: entity()}, table(), s()
+-spec update_pk_diff( Old :: entity(), New :: entity(), table(), s()
                     ) -> b_query().
 %% @doc Updates only changed fields by primary key.
-update_pk_diff({E1, E2}, Table, S) ->
+update_pk_diff(E1, E2, Table, S) ->
     EDiff =
         fun
             (V,  V,  #mekao_column{key = true}) -> V;

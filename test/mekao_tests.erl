@@ -321,33 +321,66 @@ insert_test() ->
     ).
 
 
-update_pk_test_() ->
+update_pk_test() ->
     Book = #book{isbn = Isbn, title = Title, author = Author} = book(1),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"UPDATE books SET isbn = $1, title = $2, author = $3",
+                    " WHERE id = $4">>,
+            types = [varchar, varchar, varchar, int],
+            values = [Isbn, Title, Author, 1]
+        },
+        mk_call(update_pk, Book)
+    ).
+
+
+update_pk_diff_test() ->
+    Book = #book{title = Title} = book(1),
+
     UpdatePKDiffQ = #mekao_query{body = UpdatePKDiffQBody}
         = mekao:update_pk_diff(
             Book#book{title = <<"Unknown">>}, Book, ?TABLE_BOOKS, ?S
         ),
-    [
-        ?_assertMatch(
-            #mekao_query{
-                body = <<"UPDATE books SET isbn = $1, title = $2, author = $3",
-                        " WHERE id = $4">>,
-                types = [varchar, varchar, varchar, int],
-                values = [Isbn, Title, Author, 1]
-            },
-            mk_call(update_pk, Book)
+
+    ?assertMatch(
+        #mekao_query{
+            body = <<"UPDATE books SET title = $1 WHERE id = $2">>,
+            types = [varchar, int],
+            values = [Title, 1]
+        },
+        UpdatePKDiffQ#mekao_query{
+            body = iolist_to_binary(UpdatePKDiffQBody)
+        }
+    ).
+
+
+%% @doc When key is not read only, it must be changeable.
+update_pk_diff_key_changed_test() ->
+    TBooks = #mekao_table{columns = Cols} = ?TABLE_BOOKS,
+    IdCol = #mekao_column{key = true, ro = true}
+        = lists:keyfind(<<"id">>, #mekao_column.name, Cols),
+    NewCols = lists:keystore(
+        <<"id">>, #mekao_column.name, Cols, IdCol#mekao_column{ro = false}
+    ),
+
+    Book = #book{title = Title} = book(2),
+
+    UpdatePKDiffQ = #mekao_query{body = UpdatePKDiffQBody}
+        = mekao:update_pk_diff(
+            Book#book{id = 1, title = <<"Unknown">>}, Book,
+            TBooks#mekao_table{columns = NewCols}, ?S
         ),
-        ?_assertMatch(
-            #mekao_query{
-                body = <<"UPDATE books SET title = $1 WHERE id = $2">>,
-                types = [varchar, int],
-                values = [Title, 1]
-            },
-            UpdatePKDiffQ#mekao_query{
-                body = iolist_to_binary(UpdatePKDiffQBody)
-            }
-        )
-    ].
+
+    ?assertMatch(
+        #mekao_query{
+            body = <<"UPDATE books SET id = $1, title = $2 WHERE id = $3">>,
+            types = [int, varchar, int],
+            values = [2, Title, 1]
+        },
+        UpdatePKDiffQ#mekao_query{
+            body = iolist_to_binary(UpdatePKDiffQBody)
+        }
+    ).
 
 
 delete_pk_test() ->

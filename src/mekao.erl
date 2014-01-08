@@ -98,17 +98,23 @@ update_pk(E, Table = #mekao_table{columns = MekaoCols}, S) ->
 -spec update_pk_diff( Old :: entity(), New :: entity(), table(), s()
                     ) -> b_query().
 %% @doc Updates only changed fields by primary key.
-update_pk_diff(E1, E2, Table, S) ->
-    EDiff =
+update_pk_diff(E1, E2, Table = #mekao_table{columns = MekaoCols}, S) ->
+    Vals1 = e2l(E1),
+    Vals2 = e2l(E2),
+    DiffVals = mekao_utils:map2(
         fun
-            (V,  V,  #mekao_column{key = true}) -> V;
-            (V,  V,  #mekao_column{key = false}) -> '$skip';
-            (V1, V2, #mekao_column{key = false}) when V1 /= V2 -> V2
-        end,
-    update_pk(
-        mekao_utils:map3(EDiff, e2l(E1), e2l(E2), Table#mekao_table.columns),
+            (V, V) -> '$skip';
+            (_, V2) -> V2
+        end, Vals1, Vals2
+    ),
+    SetSkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
+    WhereSkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
+
+    build(prepare_update(
+        skip(SetSkipFun, MekaoCols, DiffVals),
+        skip(WhereSkipFun, MekaoCols, Vals1),
         Table, S
-    ).
+    )).
 
 
 -spec delete_pk(selector(), table(), s()) -> b_query().

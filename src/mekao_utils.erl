@@ -18,21 +18,21 @@
 -spec map2( fun( ( V1 :: term(), V2 :: term()) -> ResV :: term() )
           , L1 :: list(), L2 :: list()) -> list().
 
-map2(_RetFun, [], []) ->
+map2(_Fun, [], []) ->
     [];
 
-map2(RetFun, [V1 | L1], [V2 | L2]) ->
-    [RetFun(V1, V2) | map2(RetFun, L1, L2)].
+map2(Fun, [V1 | L1], [V2 | L2]) ->
+    [Fun(V1, V2) | map2(Fun, L1, L2)].
 
 
 -spec map3( fun( ( V1 :: term(), V2 :: term(), V3 :: term()) -> ResV :: term() )
           , L1 :: list(), L2 :: list(), L3 :: list()) -> list().
 
-map3(_RetFun, [], [], []) ->
+map3(_Fun, [], [], []) ->
     [];
 
-map3(RetFun, [V1 | L1], [V2 | L2], [V3 | L3]) ->
-    [RetFun(V1, V2, V3) | map3(RetFun, L1, L2, L3)].
+map3(Fun, [V1 | L1], [V2 | L2], [V3 | L3]) ->
+    [Fun(V1, V2, V3) | map3(Fun, L1, L2, L3)].
 
 
 -spec identity(term()) -> term().
@@ -47,18 +47,18 @@ intersperse(List, Sep) ->
                  ) -> list().
 intersperse([], _, _) ->
     [];
-intersperse([Item], _, ValFun) ->
-    [ValFun(Item)];
-intersperse([Item | Items], Sep, ValFun) ->
-    [ValFun(Item), Sep | intersperse(Items, Sep, ValFun)].
+intersperse([Item], _, Fun) ->
+    [Fun(Item)];
+intersperse([Item | Items], Sep, Fun) ->
+    [Fun(Item), Sep | intersperse(Items, Sep, Fun)].
 
 
-intersperse2(_ValFun, _Sep, [], []) ->
+intersperse2(_Fun, _Sep, [], []) ->
     [];
-intersperse2(ValFun, _Sep, [I1], [I2]) ->
-    [ValFun(I1, I2)];
-intersperse2(ValFun, Sep, [I1 | I1s], [I2 | I2s]) ->
-    [ValFun(I1, I2), Sep | intersperse2(ValFun, Sep, I1s, I2s)].
+intersperse2(Fun, _Sep, [I1], [I2]) ->
+    [Fun(I1, I2)];
+intersperse2(Fun, Sep, [I1 | I1s], [I2 | I2s]) ->
+    [Fun(I1, I2), Sep | intersperse2(Fun, Sep, I1s, I2s)].
 
 
 %%%===================================================================

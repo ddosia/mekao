@@ -53,34 +53,48 @@
 %% API functions
 %% ===================================================================
 
--spec insert(entity(), table(), s()) -> b_query().
+-spec insert(entity(), table(), s()) -> {ok, b_query()}
+                                      | {error, empty_insert}.
 %% @doc Inserts entity, omits columns with `$skip' value.
 insert(E, Table, S) ->
     SkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
-    build(prepare_insert(
+    Q = prepare_insert(
         skip(SkipFun, Table#mekao_table.columns, e2l(E)), Table, S
-    )).
+    ),
+    if Q#mekao_query.values /= [] ->
+        {ok, build(Q)};
+    true ->
+        {error, empty_insert}
+    end.
 
 
--spec select_pk(selector(), table(), s()) -> b_query().
+-spec select_pk(selector(), table(), s()) -> {ok, b_query()}
+                                           | {error, pk_miss}.
 %% @doc Reads entity by it's primary key.
 select_pk(E, Table, S) ->
     SkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
-    build(prepare_select(
+    Q = prepare_select(
         skip(SkipFun, Table#mekao_table.columns, e2l(E)), Table, S
-    )).
+    ),
+    if Q#mekao_query.values /= [] ->
+        {ok, build(Q)};
+    true ->
+        {error, pk_miss}
+    end.
 
 
--spec select(selector(), table(), s()) -> b_query().
+-spec select(selector(), table(), s()) -> {ok, b_query()}.
 %% @doc Selects several entities, omits columns with `$skip' value.
 select(E, Table, S) ->
     SkipFun = fun(_, V) -> V == '$skip' end,
-    build(prepare_select(
+    {ok, build(prepare_select(
         skip(SkipFun, Table#mekao_table.columns, e2l(E)), Table, S
-    )).
+    ))}.
 
 
--spec update_pk(entity(), table(), s()) -> b_query().
+-spec update_pk(entity(), table(), s()) -> {ok, b_query()}
+                                         | {error, pk_miss}
+                                         | {error, empty_update}.
 %% @doc Updates entity by it's primary key, omits columns with `$skip' value.
 update_pk(E, Table = #mekao_table{columns = MekaoCols}, S) ->
 
@@ -88,15 +102,23 @@ update_pk(E, Table = #mekao_table{columns = MekaoCols}, S) ->
     WhereSkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
 
     Vals = e2l(E),
-
-    build(prepare_update(
+    Q = prepare_update(
         skip(SetSkipFun, MekaoCols, Vals), skip(WhereSkipFun, MekaoCols, Vals),
         Table, S
-    )).
+    ),
+    if (Q#mekao_query.body)#mekao_update.set == [] ->
+        {error, empty_update};
+    (Q#mekao_query.body)#mekao_update.where == [] ->
+        {error, pk_miss};
+    true ->
+        {ok, build(Q)}
+    end.
 
 
 -spec update_pk_diff( Old :: entity(), New :: entity(), table(), s()
-                    ) -> b_query().
+                    ) -> {ok, b_query()}
+                       | {error, pk_miss}
+                       | {error, empty_update}.
 %% @doc Updates only changed fields by primary key.
 update_pk_diff(E1, E2, Table = #mekao_table{columns = MekaoCols}, S) ->
     Vals1 = e2l(E1),
@@ -110,20 +132,33 @@ update_pk_diff(E1, E2, Table = #mekao_table{columns = MekaoCols}, S) ->
     SetSkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
     WhereSkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
 
-    build(prepare_update(
+    Q = prepare_update(
         skip(SetSkipFun, MekaoCols, DiffVals),
         skip(WhereSkipFun, MekaoCols, Vals1),
         Table, S
-    )).
+    ),
+
+    if (Q#mekao_query.body)#mekao_update.set == [] ->
+        {error, empty_update};
+    (Q#mekao_query.body)#mekao_update.where == [] ->
+        {error, pk_miss};
+    true ->
+        {ok, build(Q)}
+    end.
 
 
--spec delete_pk(selector(), table(), s()) -> b_query().
+-spec delete_pk(selector(), table(), s()) -> {ok, b_query()} | {error, pk_miss}.
 %% @doc Deletes entity by primary key.
 delete_pk(E, Table, S) ->
     SkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
-    build(prepare_delete(
+    Q = prepare_delete(
         skip(SkipFun, Table#mekao_table.columns, e2l(E)), Table, S
-    )).
+    ),
+    if Q#mekao_query.values /= [] ->
+        {ok, build(Q)};
+    true ->
+        {error, pk_miss}
+    end.
 
 
 -spec prepare_insert(entity(), table(), s()) -> p_query().

@@ -337,7 +337,7 @@ update_pk_test() ->
 update_pk_diff_test() ->
     Book = #book{title = Title} = book(1),
 
-    UpdatePKDiffQ = #mekao_query{body = UpdatePKDiffQBody}
+    {ok, UpdatePKDiffQ = #mekao_query{body = UpdatePKDiffQBody}}
         = mekao:update_pk_diff(
             Book#book{title = <<"Unknown">>}, Book, ?TABLE_BOOKS, ?S
         ),
@@ -365,7 +365,7 @@ update_pk_diff_key_changed_test() ->
 
     Book = #book{title = Title} = book(2),
 
-    UpdatePKDiffQ = #mekao_query{body = UpdatePKDiffQBody}
+    {ok, UpdatePKDiffQ = #mekao_query{body = UpdatePKDiffQBody}}
         = mekao:update_pk_diff(
             Book#book{id = 1, title = <<"Unknown">>}, Book,
             TBooks#mekao_table{columns = NewCols}, ?S
@@ -393,6 +393,41 @@ delete_pk_test() ->
         mk_call(delete_pk, book(1))
     ).
 
+error_test_() -> [
+    ?_assertMatch(
+        {error, empty_insert},
+        mekao:insert(#book{_ = '$skip'}, ?TABLE_BOOKS, ?S)
+    ),
+    ?_assertMatch(
+        {error, pk_miss},
+        mekao:select_pk(book('$skip'), ?TABLE_BOOKS, ?S)
+    ),
+    ?_assertMatch(
+        {error, pk_miss},
+        mekao:update_pk(book('$skip'), ?TABLE_BOOKS, ?S)
+    ),
+    ?_assertMatch(
+        {error, empty_update},
+        mekao:update_pk(#book{id = 1,_ = '$skip'}, ?TABLE_BOOKS, ?S)
+    ),
+    ?_assertMatch(
+        {error, empty_update},
+        mekao:update_pk_diff(book(1), book(1), ?TABLE_BOOKS, ?S)
+    ),
+    ?_assertMatch(
+        {error, pk_miss},
+        mekao:update_pk_diff(
+            (book('$skip'))#book{isbn = <<"Unknown">>}, book('$skip'),
+            ?TABLE_BOOKS, ?S
+        )
+    ),
+    ?_assertMatch(
+        {error, pk_miss},
+        mekao:delete_pk(book('$skip'), ?TABLE_BOOKS, ?S)
+    )
+].
+
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -413,5 +448,5 @@ mk_call(CallName, E, Table) ->
     mk_call(CallName, E, Table, ?S).
 
 mk_call(CallName, E, Table, S) ->
-    Q = #mekao_query{body = B} = mekao:CallName(E, Table, S),
+    {ok, Q = #mekao_query{body = B}} = mekao:CallName(E, Table, S),
     Q#mekao_query{body = iolist_to_binary(B)}.

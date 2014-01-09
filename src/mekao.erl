@@ -6,6 +6,7 @@
     insert/3,
     update_pk/3,
     update_pk_diff/4,
+    update/4,
     delete_pk/3,
 
     prepare_select/3,
@@ -142,6 +143,25 @@ update_pk_diff(E1, E2, Table = #mekao_table{columns = MekaoCols}, S) ->
         {error, empty_update};
     (Q#mekao_query.body)#mekao_update.where == [] ->
         {error, pk_miss};
+    true ->
+        {ok, build(Q)}
+    end.
+
+
+-spec update(entity(), selector(), table(), s()) -> {ok, b_query()}
+                                                  | {error, empty_update}.
+%% @doc Updates entity, composes WHERE clause `Selector' non `$skip' fields.
+update(E, Selector, Table = #mekao_table{columns = MekaoCols}, S) ->
+    SetSkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
+    WhereSkipFun = fun(_, V) -> V == '$skip' end,
+
+    Q = prepare_update(
+        skip(SetSkipFun, MekaoCols, e2l(E)),
+        skip(WhereSkipFun, MekaoCols, e2l(Selector)),
+        Table, S
+    ),
+    if (Q#mekao_query.body)#mekao_update.set == [] ->
+        {error, empty_update};
     true ->
         {ok, build(Q)}
     end.

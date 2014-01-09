@@ -321,6 +321,26 @@ insert_test() ->
     ).
 
 
+update_test() ->
+    Book = #book{isbn = Isbn, title = Title} = book(1),
+    {ok, UpdateQ = #mekao_query{body = UpdateQBody}}
+        = mekao:update(
+            #book{title = Title, _ = '$skip'}, #book{isbn = Isbn, _ = '$skip'},
+            ?TABLE_BOOKS, ?S
+        ),
+
+    ?assertMatch(
+        #mekao_query{
+            body = <<"UPDATE books SET title = $1 WHERE isbn = $2">>,
+            types = [varchar, varchar],
+            values = [Title, Isbn]
+        },
+        UpdateQ#mekao_query{
+            body = iolist_to_binary(UpdateQBody)
+        }
+    ).
+
+
 update_pk_test() ->
     Book = #book{isbn = Isbn, title = Title, author = Author} = book(1),
     ?assertMatch(

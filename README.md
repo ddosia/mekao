@@ -59,7 +59,7 @@ as in record)
 4. Use it:
 ```erlang
     {ok, #mekao_query{body = Q, types = Types, values = Values}}
-        = mekao:insert(#book{title = <<"SQL rocks!">>, author = <<"Smarty">>}),
+        = mekao:insert(#book{title = <<"SQL rocks!">>, author = <<"Smarty">>}, ?TABLE_BOOKS, ?MEKAO_SETTINGS),
 
         <<"INSERT INTO books (title, author) VALUES ($1, $2)",
             " RETURNING id, title, author">> = iolist_to_binary(Q),

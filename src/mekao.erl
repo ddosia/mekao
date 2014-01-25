@@ -8,6 +8,7 @@
     update_pk_diff/4,
     update/4,
     delete_pk/3,
+    delete/3,
 
     prepare_select/3,
     prepare_insert/3,
@@ -23,12 +24,12 @@
 -type s()       :: #mekao_settings{}.
 
 -type entity()      :: tuple() | list().
--type selector()    :: tuple() | list(predicate()).
+-type selector()    :: tuple() | list(predicate(term())).
 
--type predicate()   :: Value :: term()
-                     | { '$predicate'
-                       , '=' | '<>' | '>' | '>=' | '<' | '<='
-                       , Value :: term() }.
+-type predicate(Value) :: Value
+                        | { '$predicate'
+                          , '=' | '<>' | '>' | '>=' | '<' | '<='
+                          , Value}.
 
 %% generic query
 -type 'query'(Body) :: #mekao_query{body :: Body}.
@@ -43,11 +44,9 @@
 -type b_query() :: 'query'(iolist()).
 
 -export_type([
-    table/0,
-    column/0,
-    s/0,
-    p_query/0,
-    b_query/0
+    table/0, column/0, s/0,
+    p_query/0, b_query/0,
+    predicate/1
 ]).
 
 %% ===================================================================
@@ -93,9 +92,9 @@ select(E, Table, S) ->
     ))}.
 
 
--spec update_pk(entity(), table(), s()) -> {ok, b_query()}
-                                         | {error, pk_miss}
-                                         | {error, empty_update}.
+-spec update_pk(selector(), table(), s()) -> {ok, b_query()}
+                                           | {error, pk_miss}
+                                           | {error, empty_update}.
 %% @doc Updates entity by it's primary key, omits columns with `$skip' value.
 update_pk(E, Table = #mekao_table{columns = MekaoCols}, S) ->
 
@@ -150,7 +149,8 @@ update_pk_diff(E1, E2, Table = #mekao_table{columns = MekaoCols}, S) ->
 
 -spec update(entity(), selector(), table(), s()) -> {ok, b_query()}
                                                   | {error, empty_update}.
-%% @doc Updates entity, composes WHERE clause `Selector' non `$skip' fields.
+%% @doc Updates entities, composes WHERE clause from `Selector'
+%%      non `$skip' fields.
 update(E, Selector, Table = #mekao_table{columns = MekaoCols}, S) ->
     SetSkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
     WhereSkipFun = fun(_, V) -> V == '$skip' end,
@@ -179,6 +179,18 @@ delete_pk(E, Table, S) ->
     true ->
         {error, pk_miss}
     end.
+
+
+-spec delete(selector(), table(), s()) -> {ok, b_query()}.
+%% @doc Deletes entities, composes WHERE clause  from `Selector'
+%%      non `$skip' fields.
+delete(Selector, Table, S) ->
+    SkipFun = fun(_, V) -> V == '$skip' end,
+
+    Q = prepare_delete(
+        skip(SkipFun, Table#mekao_table.columns, e2l(Selector)), Table, S
+    ),
+    {ok, build(Q)}.
 
 
 -spec prepare_insert(entity(), table(), s()) -> p_query().

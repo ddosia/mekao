@@ -1,3 +1,4 @@
+%% @private
 -module(mekao_utils).
 
 %% API

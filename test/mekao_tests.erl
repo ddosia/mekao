@@ -413,6 +413,17 @@ delete_pk_test() ->
         mk_call(delete_pk, book(1))
     ).
 
+delete_test() ->
+    #book{author = Author} = book(1),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"DELETE FROM books WHERE author = $1">>,
+            types = [varchar],
+            values = [Author]
+        },
+        mk_call(delete, #book{author = Author, _ = '$skip'})
+    ).
+
 error_test_() -> [
     ?_assertMatch(
         {error, empty_insert},

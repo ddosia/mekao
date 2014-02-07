@@ -112,7 +112,7 @@ returning_test_() ->
                 ),
                 [<<"RETURNING ">>, CNames]
         end,
-    Book = #book{isbn = Isbn, title = Title, author = Author} = book(1),
+    #book{isbn = Isbn, title = Title, author = Author} = book(1),
     [
         ?_assertMatch(
             #mekao_query{
@@ -238,7 +238,7 @@ predicate_test_() ->
 
 
 prepare_select1_test() ->
-    #book{author = Author, isbn = Isbn} = book(1),
+    #book{author = Author} = book(1),
     Q = #mekao_query{body = QBody = #mekao_select{where = Where}} =
         mekao:prepare_select(
             #book{author = Author, _ = '$skip'}, ?TABLE_BOOKS, ?S
@@ -322,7 +322,7 @@ insert_test() ->
 
 
 update_test() ->
-    Book = #book{isbn = Isbn, title = Title} = book(1),
+    #book{isbn = Isbn, title = Title} = book(1),
     {ok, UpdateQ = #mekao_query{body = UpdateQBody}}
         = mekao:update(
             #book{title = Title, _ = '$skip'}, #book{isbn = Isbn, _ = '$skip'},

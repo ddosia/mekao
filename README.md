@@ -8,7 +8,7 @@ specific.
 Main assumption was that records are used to represent DB data.
 
 
-status
+status [![Build Status](https://secure.travis-ci.org/ddosia/mekao.png?branch=master)](http://travis-ci.org/ddosia/mekao)
 ======
 
 Alpha. It is under active development, any feedback are appreciated!

@@ -2,5 +2,4 @@
 *.dump
 ebin/
 deps/
-doc/
 .eunit

@@ -1,5 +1,5 @@
 -record(mekao_column, {
-    name        :: binary() | iolist(), %% sql column name
+    name        :: iodata(),        %% sql column name
     type        :: term(),          %% sql datatype, acceptable by underlying
                                     %% driver
     key = false :: boolean(),       %% primary key part
@@ -9,7 +9,7 @@
 }).
 
 -record(mekao_table, {
-    name         :: binary() | iolist(),
+    name         :: iodata(),
     columns = [] :: [mekao:column()]
 }).
 
@@ -20,13 +20,13 @@
     placeholder                 :: fun( ( mekao:column()
                                         , Num :: non_neg_integer()
                                         , Val :: term()
-                                        ) -> binary() | iolist()),
+                                        ) -> iodata()),
 
     %% forms "returning" string for insert/update queries
     returning                   :: undefined
                                  | fun( ( insert | update | delete
                                         , mekao:table()
-                                        ) -> binary() | iolist()),
+                                        ) -> iodata()),
 
     %% it is up to application what erlang term represents NULL
     %% (for instance 'undefined' or 'null')
@@ -41,27 +41,27 @@
 }).
 
 -record(mekao_select, {
-    columns     :: binary() | iolist(),
-    table       :: binary() | iolist(),
-    where       :: binary() | iolist()
+    columns     :: iodata(),
+    table       :: iodata(),
+    where       :: iodata()
 }).
 
 -record(mekao_insert, {
-    table       :: binary() | iolist(),
-    columns     :: binary() | iolist(),
-    values      :: binary() | iolist(),
-    returning   :: binary() | iolist()
+    table       :: iodata(),
+    columns     :: iodata(),
+    values      :: iodata(),
+    returning   :: iodata()
 }).
 
 -record(mekao_update, {
-    table       :: binary() | iolist(),
-    set         :: binary() | iolist(),
-    where       :: binary() | iolist(),
-    returning   :: binary() | iolist()
+    table       :: iodata(),
+    set         :: iodata(),
+    where       :: iodata(),
+    returning   :: iodata()
 }).
 
 -record(mekao_delete, {
-    table       :: binary() | iolist(),
-    where       :: binary() | iolist(),
-    returning   :: binary() | iolist()
+    table       :: iodata(),
+    where       :: iodata(),
+    returning   :: iodata()
 }).

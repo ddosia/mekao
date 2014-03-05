@@ -74,6 +74,23 @@ Example:
 ```
 See [#mekao_column{}](#mekao_column)
 
+### order_by
+
+List of record's field positions and/or expressions to sort result of
+`select*` queries.
+
+Important note, this is not a position of column, but record's field number.
+
+Example:
+```erlang
+-record(book, {id, isbn}).
+
+#mekao_table{
+    order_by = [#book.isbn]
+}.
+%% SELECT id, isbn FROM ... ORDER BY 2
+%% although #book.isbn = 3
+```
 
 ## #mekao_column{}
 This record is intended to describe particular column.

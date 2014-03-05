@@ -309,6 +309,23 @@ select_pk_test() ->
     ).
 
 
+order_by_test() ->
+    T = ?TABLE_BOOKS#mekao_table{
+        order_by = [
+            #book.author, {#book.title, {desc, default}}, "EXTRACT(DAY FROM created)"
+        ]
+    },
+    ?assertMatch(
+        #mekao_query{
+            body = <<"SELECT id, isbn, title, author, created FROM books",
+                    " ORDER BY 4, 3 DESC, EXTRACT(DAY FROM created)">>
+        },
+        mk_call(
+            select, #book{_ = '$skip'}, T, ?S
+        )
+    ).
+
+
 insert_test() ->
     Book = #book{isbn = Isbn, title = Title, author = Author} = book(1),
     ?assertMatch(

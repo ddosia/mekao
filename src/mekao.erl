@@ -211,7 +211,12 @@ prepare_insert(E, Table, S) ->
 
 
 -spec prepare_select(selector(), table(), s()) -> p_query().
-prepare_select(E, Table = #mekao_table{columns = MekaoCols}, S) ->
+prepare_select(E, Table, S) ->
+    #mekao_table{
+        columns = MekaoCols,
+        order_by = OrderBy
+    } = Table,
+
     {Where, {_, PHs, Types, Vals}} = where(
         qdata(1, e2l(E), MekaoCols, S), S
     ),
@@ -222,7 +227,8 @@ prepare_select(E, Table = #mekao_table{columns = MekaoCols}, S) ->
     Q = #mekao_select{
         table       = Table#mekao_table.name,
         columns     = AllCols,
-        where       = Where
+        where       = Where,
+        order_by    = order_by(OrderBy)
     },
     #mekao_query{
        body     = Q,
@@ -286,11 +292,13 @@ build(Q = #mekao_query{body = Select}) when is_record(Select, mekao_select) ->
     #mekao_select{
         columns = Columns,
         table   = Table,
-        where   = Where
+        where   = Where,
+        order_by = OrderBy
     } = Select,
     Q#mekao_query{
         body = [
-            <<"SELECT ">>, Columns, <<" FROM ">>, Table, build_where(Where)
+            <<"SELECT ">>, Columns, <<" FROM ">>, Table, build_where(Where),
+            build_order_by(OrderBy)
         ]
     };
 
@@ -424,6 +432,42 @@ op_to_bin('>=') -> <<" >= ">>;
 op_to_bin('<')  -> <<" < ">>;
 op_to_bin('<=') -> <<" <= ">>.
 
+
+order_by([]) ->
+    [];
+order_by([O]) ->
+    [order_by_1(O)];
+order_by([O | OrderBy]) ->
+    [order_by_1(O), <<", ">> | order_by(OrderBy)].
+
+order_by_1(E) when not is_tuple(E) ->
+    order_by_1({E, {default, default}});
+
+order_by_1({Pos, Opts}) when is_integer(Pos) ->
+    order_by_1({integer_to_list(Pos - 1), Opts});
+
+order_by_1({Expr, Opts}) when is_list(Expr); is_binary(Expr) ->
+    [Expr, order_by_opts(Opts)].
+
+order_by_opts({Ordering, Nulls}) ->
+    O = case Ordering of
+        default ->
+            <<"">>;
+        asc ->
+            <<" ASC">>;
+        desc ->
+            <<" DESC">>
+    end,
+    case Nulls of
+        default ->
+            O;
+        nulls_first ->
+            <<O/binary," NULLS FIRST">>;
+        nulls_last ->
+            <<O/binary, " NULLS LAST">>
+    end.
+
+
 build_return([]) ->
     <<>>;
 build_return(Return) ->
@@ -433,6 +477,12 @@ build_where([]) ->
     <<>>;
 build_where(Where) ->
     [<<" WHERE ">> | Where].
+
+
+build_order_by([]) ->
+    <<>>;
+build_order_by(OrderBy) ->
+    [<<" ORDER BY ">>, OrderBy].
 
 
 predicate_val({'$predicate', _, V}) ->

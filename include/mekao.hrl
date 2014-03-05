@@ -9,8 +9,16 @@
 }).
 
 -record(mekao_table, {
-    name         :: iodata(),
-    columns = [] :: [mekao:column()]
+    name            :: iodata(),
+    columns = []    :: [mekao:column()],
+    %% order by column position or by arbitrary expression
+    order_by = []   :: [ non_neg_integer() % column position
+                       | iodata()          % expression
+                       | { non_neg_integer() | iodata()
+                         , { asc | desc | default
+                           , nulls_first | nulls_last | default}
+                         }
+                       ]
 }).
 
 -record(mekao_settings, {
@@ -43,7 +51,8 @@
 -record(mekao_select, {
     columns     :: iodata(),
     table       :: iodata(),
-    where       :: iodata()
+    where       :: iodata(),
+    order_by    :: iodata()
 }).
 
 -record(mekao_insert, {

@@ -25,20 +25,15 @@
     %% different db drivers have different placeholders.
     %% pgsql accepts placeholders in form of `"$1, $2, ... $N"'.
     %% odbc driver accepts phs in form of `"?, ?, ..., ?"'
-    placeholder                 :: fun( ( mekao:column()
-                                        , Num :: non_neg_integer()
-                                        , Val :: term()
-                                        ) -> iodata()),
+    placeholder :: fun( ( mekao:column()
+                        , Num :: non_neg_integer()
+                        , Val :: term()
+                        ) -> iodata()),
 
-    %% forms "returning" string for insert/update queries
-    returning                   :: undefined
-                                 | fun( ( insert | update | delete
-                                        , mekao:table()
-                                        ) -> iodata()),
+    returning :: undefined
+               | fun(( insert | update | delete, mekao:table()) -> iodata()),
 
-    %% it is up to application what erlang term represents NULL
-    %% (for instance 'undefined' or 'null')
-    is_null                     :: fun((Value :: term()) -> boolean())
+    is_null = fun mekao_utils:is_null/1 :: fun((Value :: term()) -> boolean())
 }).
 
 -record(mekao_query, {

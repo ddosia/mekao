@@ -4,6 +4,7 @@
 %% API
 -export([
     identity/1,
+    is_null/1,
     intersperse/2, intersperse/3,
     intersperse2/4,
 
@@ -35,6 +36,10 @@ map3(_Fun, [], [], []) ->
 map3(Fun, [V1 | L1], [V2 | L2], [V3 | L3]) ->
     [Fun(V1, V2, V3) | map3(Fun, L1, L2, L3)].
 
+
+-spec is_null(term()) -> boolean().
+is_null(V) ->
+    V == undefined.
 
 -spec identity(term()) -> term().
 identity(X) -> X.

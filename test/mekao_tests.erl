@@ -17,8 +17,7 @@
 }).
 
 -define(S, #mekao_settings{
-    placeholder = fun (_, Pos, _) -> [$$ | integer_to_list(Pos)] end,
-    is_null     = fun(V) -> V == undefined end
+    placeholder = fun (_, Pos, _) -> [$$ | integer_to_list(Pos)] end
 }).
 
 %%%===================================================================

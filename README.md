@@ -11,10 +11,9 @@ Main assumption is that records are used to represent DB data.
 1.  [Status](#status)
 2.  [Basic usage](#usage)
 3.  [Records](doc/records.md#toc)
-    * [#mekao_settings{}](doc/mekao_records.md#mekao_settings)
-    * [#mekao_table{}](doc/mekao_records.md#mekao_table)
-    * [#mekao_column{}](doc/mekao_records.md#mekao_column)
-    * [#mekao_query{}](doc/mekao_records.md#mekao_query)
+    * [#mekao_settings{}](doc/records.md#mekao_settings)
+    * [#mekao_table{}](doc/records.md#mekao_table)
+    * [#mekao_column{}](doc/records.md#mekao_column)
 
 # Status
 

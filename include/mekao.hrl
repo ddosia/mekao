@@ -12,8 +12,8 @@
     name            :: iodata(),
     columns = []    :: [mekao:column()],
     %% order by column position or by arbitrary expression
-    order_by = []   :: [ non_neg_integer() % column position
-                       | iodata()          % expression
+    order_by = []   :: [ non_neg_integer() % record's field pos
+                       | iodata()          % arbitrary expression
                        | { non_neg_integer() | iodata()
                          , { asc | desc | default
                            , nulls_first | nulls_last | default}

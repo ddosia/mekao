@@ -236,6 +236,21 @@ predicate_test_() ->
     ).
 
 
+like_test() ->
+    Title = <<"%Erlang%">>,
+    ?assertMatch(
+        #mekao_query{
+            body = <<"SELECT id, isbn, title, author, created FROM books",
+                    " WHERE title LIKE $1">>,
+            types = [varchar],
+            values = [Title]
+        },
+        mk_call(
+            select, #book{title = {'$predicate', like, Title}, _ = '$skip'}
+        )
+    ).
+
+
 prepare_select1_test() ->
     #book{author = Author} = book(1),
     Q = #mekao_query{body = QBody = #mekao_select{where = Where}} =

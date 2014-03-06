@@ -29,6 +29,7 @@
 -type predicate(Value) :: Value
                         | { '$predicate'
                           , '=' | '<>' | '>' | '>=' | '<' | '<='
+                          | like
                           , Value}.
 
 %% generic query
@@ -410,7 +411,7 @@ where({[C | Cs], [PH | PHs], [T | Types], [V | Vals]}, S) ->
     {[W, <<" AND ">> | Ws],
         {[NewC | NewCs], [NewPH | NewPHs], [NewT | NewTypes], [NewV | NewVals]}}.
 
-%% TODO: add NOT, IN, ANY, ALL, BETWEEN, LIKE handling
+%% TODO: add NOT, IN, ANY, ALL, BETWEEN handling
 predicate({C, PH, T, {'$predicate', Op, V}}, S) when Op == '='; Op == '<>' ->
     IsNull = (S#mekao_settings.is_null)(V),
     if not IsNull ->
@@ -420,6 +421,8 @@ predicate({C, PH, T, {'$predicate', Op, V}}, S) when Op == '='; Op == '<>' ->
     Op == '<>' ->
         {[C, <<" IS NOT NULL">>], {C, PH, T, V}}
     end;
+predicate({C, PH, T, {'$predicate', like, V}},  _S) ->
+    {[C, <<" LIKE ">>, PH], {C, PH, T, V}};
 predicate({C, PH, T, {'$predicate', OP, V}},  _S) ->
     {[C, op_to_bin(OP), PH],  {C, PH, T, V}};
 predicate({C, PH, T, V}, S) ->

@@ -25,13 +25,13 @@ Alpha. It is under development, any feedback are appreciated!
 
 Suppose that we have table `books` in our SQL db:
 
-| Column    | Type    | Attributes                  |
-|-----------|---------|-----------------------------|
-| id        | int     | Primary key, read only      |
-| isbn      | varchar |                             |
-| title     | varchar |                             |
-| author    | varchar |                             |
-| created   | created | Read-only                   |
+| Column    | Type      | Attributes                  |
+|-----------|-----------|-----------------------------|
+| id        | int       | Primary key, read only      |
+| isbn      | varchar   |                             |
+| title     | varchar   |                             |
+| author    | varchar   |                             |
+| created   | timestamp | Read-only                   |
 
 We could create a record, which will hold the data from this table:
 

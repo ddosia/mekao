@@ -12,7 +12,7 @@
         #mekao_column{name = <<"isbn">>, type = varchar},
         #mekao_column{name = <<"title">>, type = varchar},
         #mekao_column{name = <<"author">>, type = varchar},
-        #mekao_column{name = <<"created">>, type = datetime, ro = true}
+        #mekao_column{name = <<"created">>, type = timestamp, ro = true}
     ]
 }).
 
@@ -226,7 +226,7 @@ predicate_test_() ->
                     " WHERE created ", OpBin/binary," $1">>,
             ?_assertMatch(
                 #mekao_query{
-                    body = QBody, types = [datetime], values = [DT]
+                    body = QBody, types = [timestamp], values = [DT]
                 },
                 mk_call(
                     select, #book{created = {'$predicate', Op, DT}, _ = '$skip'}
@@ -247,6 +247,30 @@ like_test() ->
         },
         mk_call(
             select, #book{title = {'$predicate', like, Title}, _ = '$skip'}
+        )
+    ).
+
+
+between_test() ->
+    NowSecs = calendar:datetime_to_gregorian_seconds(
+        calendar:now_to_datetime(os:timestamp())
+    ),
+    DT1 = calendar:gregorian_seconds_to_datetime(NowSecs - 24 * 60 * 60),
+    DT2 = calendar:gregorian_seconds_to_datetime(NowSecs),
+
+    ?assertMatch(
+        #mekao_query{
+            body = <<"SELECT id, isbn, title, author, created FROM books",
+                    " WHERE created BETWEEN $1 AND $2">>,
+            types  = [timestamp, timestamp],
+            values = [DT1, DT2],
+            next_ph_num = 3
+        },
+        mk_call(
+            select, #book{
+                created = {'$predicate', between, DT1, DT2},
+                _ = '$skip'
+            }
         )
     ).
 

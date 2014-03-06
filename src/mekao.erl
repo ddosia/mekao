@@ -218,7 +218,7 @@ prepare_select(E, Table, S) ->
         order_by = OrderBy
     } = Table,
 
-    {Where, {_, PHs, Types, Vals}} = where(
+    {Where, {PHs, Types, Vals}} = where(
         qdata(1, e2l(E), MekaoCols, S), S
     ),
     AllCols = mekao_utils:intersperse(
@@ -246,7 +246,7 @@ prepare_update(SetE, WhereE, Table = #mekao_table{columns = MekaoCols}, S) ->
     ),
     SetPHsLen = length(SetPHs),
 
-    {Where, {_, WherePHs, WhereTypes, WhereVals}}
+    {Where, {WherePHs, WhereTypes, WhereVals}}
         = where(qdata(SetPHsLen + 1, e2l(WhereE), MekaoCols, S), S),
 
     WherePHsLen = length(WherePHs),
@@ -272,7 +272,7 @@ prepare_update(SetE, WhereE, Table = #mekao_table{columns = MekaoCols}, S) ->
 
 -spec prepare_delete(selector(), table(), s()) -> p_query().
 prepare_delete(E, Table, S) ->
-    {Where, {_, PHs, Types, Vals}}
+    {Where, {PHs, Types, Vals}}
         = where(qdata(1, e2l(E), Table#mekao_table.columns, S), S),
 
     Q = #mekao_delete{
@@ -374,21 +374,34 @@ qdata(Num, ['$skip' | Vals], [_Col | Cols], S) ->
     qdata(Num, Vals, Cols, S);
 
 qdata(Num, [Pred | Vals], [Col | Cols], S) ->
+    #mekao_settings{placeholder = PHFun} = S,
     #mekao_column{type = T, name = CName, transform = TrFun} = Col,
 
-    V = predicate_val(Pred),
-    NewV =
-        if TrFun == undefined ->
-            V;
-        true ->
-            TrFun(V)
+    {NextNum, NewPH, NewT, NewV} =
+        case Pred of
+            {'$predicate', Op, V} ->
+                TransV = transform(TrFun, V),
+                PH = PHFun(Col, Num, TransV),
+                {Num + 1, PH, T, {'$predicate', Op, TransV}};
+            {'$predicate', 'between', V1, V2} ->
+                TransV1 = transform(TrFun, V1),
+                TransV2 = transform(TrFun, V2),
+                PH1 = PHFun(Col, Num, TransV1),
+                PH2 = PHFun(Col, Num + 1, TransV2),
+                {Num + 2, {PH1, PH2}, T,
+                    {'$predicate', 'between', TransV1, TransV2}
+                };
+            V ->
+                TransV = transform(TrFun, V),
+                PH = PHFun(Col, Num, TransV),
+                {Num + 1, PH, T, TransV}
         end,
-    PH = (S#mekao_settings.placeholder)(Col, Num, NewV),
-    NewPred = set_predicate_val(Pred, NewV),
     {ResCols, ResPHs, ResTypes, ResVals} = qdata(
-        Num + 1, Vals, Cols, S
+        NextNum, Vals, Cols, S
     ),
-    {[CName | ResCols], [PH | ResPHs], [T | ResTypes], [NewPred | ResVals]}.
+
+    {[CName | ResCols], [NewPH | ResPHs], [NewT | ResTypes],
+        [NewV | ResVals]}.
 
 
 -spec returning(insert | update | delete, table(), s()) -> iolist().
@@ -398,35 +411,43 @@ returning(QType, Table, #mekao_settings{returning = RetFun}) ->
     RetFun(QType, Table).
 
 
-where(QData = {[], [], [], []}, _S) ->
-    {[], QData};
+where({[], [], [], []}, _S) ->
+    {[], {[], [], []}};
 
 where({[C], [PH], [T], [V]}, S) ->
-    {W, {NewC, NewPH, NewT, NewV}} = predicate({C, PH, T, V}, S),
-    {[W], {[NewC], [NewPH], [NewT], [NewV]}};
+    {W, {NewPHs, NewTs, NewVs}} = predicate({C, PH, T, V}, S),
+    {[W], {NewPHs, NewTs, NewVs}};
 
 where({[C | Cs], [PH | PHs], [T | Types], [V | Vals]}, S) ->
-    {W, {NewC, NewPH, NewT, NewV}} = predicate({C, PH, T, V}, S),
-    {Ws, {NewCs, NewPHs, NewTypes, NewVals}} = where({Cs, PHs, Types, Vals}, S),
+    {W, {NewPHs, NewTs, NewVs}} = predicate({C, PH, T, V}, S),
+    {Ws, {ResPHs, ResTs, ResVs}} = where({Cs, PHs, Types, Vals}, S),
     {[W, <<" AND ">> | Ws],
-        {[NewC | NewCs], [NewPH | NewPHs], [NewT | NewTypes], [NewV | NewVals]}}.
+        {NewPHs ++ ResPHs, NewTs ++ ResTs, NewVs ++ ResVs}}.
+
 
 %% TODO: add NOT, IN, ANY, ALL, BETWEEN handling
 predicate({C, PH, T, {'$predicate', Op, V}}, S) when Op == '='; Op == '<>' ->
     IsNull = (S#mekao_settings.is_null)(V),
     if not IsNull ->
-        {[C, op_to_bin(Op), PH], {C, PH, T, V}};
+        {[C, op_to_bin(Op), PH], {[PH], [T], [V]}};
     Op == '=' ->
-        {[C, <<" IS NULL">>], {C, PH, T, V}};
+        {[C, <<" IS NULL">>], {[PH], [T], [V]}};
     Op == '<>' ->
-        {[C, <<" IS NOT NULL">>], {C, PH, T, V}}
+        {[C, <<" IS NOT NULL">>], {[PH], [T], [V]}}
     end;
+
+predicate({C, {PH1, PH2}, T, {'$predicate', between, V1, V2}}, _S) ->
+    {[C, <<" BETWEEN ">>, PH1, <<" AND ">>, PH2], {[PH1, PH2], [T, T], [V1, V2]}};
+
 predicate({C, PH, T, {'$predicate', like, V}},  _S) ->
-    {[C, <<" LIKE ">>, PH], {C, PH, T, V}};
+    {[C, <<" LIKE ">>, PH], {[PH], [T], [V]}};
+
 predicate({C, PH, T, {'$predicate', OP, V}},  _S) ->
-    {[C, op_to_bin(OP), PH],  {C, PH, T, V}};
+    {[C, op_to_bin(OP), PH], {[PH], [T], [V]}};
+
 predicate({C, PH, T, V}, S) ->
     predicate({C, PH, T, {'$predicate', '=', V}}, S).
+
 
 op_to_bin('=')  -> <<" = ">>;
 op_to_bin('<>') -> <<" <> ">>;
@@ -488,13 +509,7 @@ build_order_by(OrderBy) ->
     [<<" ORDER BY ">>, OrderBy].
 
 
-predicate_val({'$predicate', _, V}) ->
+transform(undefined, V) ->
     V;
-predicate_val(V) ->
-    V.
-
-
-set_predicate_val({'$predicate', Op, _}, NewV) ->
-    {'$predicate', Op, NewV};
-set_predicate_val(_, NewV) ->
-    NewV.
+transform(TrFun, V) when is_function(TrFun, 1) ->
+    TrFun(V).

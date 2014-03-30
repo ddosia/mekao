@@ -23,13 +23,15 @@
 -type column()  :: #mekao_column{}.
 -type s()       :: #mekao_settings{}.
 
--type entity()      :: tuple() | list().
+-type entity()      :: tuple() | list(term() | '$skip').
 -type selector()    :: tuple() | list(predicate()).
 
 -type predicate() :: term()
-                  | { '$predicate', 'between', term(), term()}
+                  | { '$predicate', between, term(), term() }
                   | { '$predicate'
-                    , '=' | '<>' | '>' | '>=' | '<' | '<=' | like, term()}.
+                    , '=' | '<>' | '>' | '>=' | '<' | '<=' | like
+                    , term()
+                    }.
 
 %% generic query
 -type 'query'(Body) :: #mekao_query{body :: Body}.

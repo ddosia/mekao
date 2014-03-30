@@ -1,25 +1,17 @@
 # mekao
 
 This library will help you to construct SQL queries. It have no other
-facilities then this (no pools, or db specific code, just plain SQL).
+facilities other than this (no pools, or db specific code, just plain SQL).
 Generated queries are not vendor specific.
-
 Main assumption is that records are used to represent DB data.
 
+[![Build Status](https://secure.travis-ci.org/ddosia/mekao.png?branch=master)](http://travis-ci.org/ddosia/mekao)
 
 # ToC
-1.  [Status](#status)
-2.  [Basic usage](#usage)
-3.  [Records](doc/records.md#toc)
-    * [#mekao_settings{}](doc/records.md#mekao_settings)
-    * [#mekao_table{}](doc/records.md#mekao_table)
-    * [#mekao_column{}](doc/records.md#mekao_column)
-
-# Status
-
-Alpha. It is under development, any feedback are appreciated!
-
-[![Build Status](https://secure.travis-ci.org/ddosia/mekao.png?branch=master)](http://travis-ci.org/ddosia/mekao)
+1.  [Basic usage](#usage)
+2.  [Records](#records)
+3.  [Selectors](#selectors)
+4.  [Entities](#entities)
 
 # Usage
 
@@ -45,11 +37,11 @@ record:
 ```erlang
 fetch_book_by_id(Id) ->
     Q = "SELECT * FROM books WHERE id = ?",
-    db:fetch(Q, [int], [Id]).
+    to_record(book, db:fetch(Q, [int], [Id])).
 
 fetch_book_by_isbn(ISBN) ->
     Q = "SELECT * FROM books WHERE isbn = ?",
-    db:fetch(Q, [varchar], [ISBN]).
+    to_record(book, db:fetch(Q, [varchar], [ISBN])).
 ```
 Now you see similarity in both queries and want somehow to generalize this.
 Here comes *mekao*.
@@ -65,7 +57,7 @@ fetch_book(Book) ->
     {ok, #mekao_query{
         body = Q, types = Types, values = Vals
     }} = mekao:select(Book, ?TABLE_BOOKS, ?S),
-    db:fetch(Q, Types, Vals).
+    to_record(book, db:fetch(Q, Types, Vals)).
 ```
 
 Probably you would ask, what is this `?TABLE_BOOKS` and `?S`
@@ -115,9 +107,54 @@ This instructs *mekao* that you don't want to include other fields in query
 constructions.
 
 Also you may wonder about `iolist_to_binary(MekaoQ#mekao_query.body)` part.
-All queries which *mekao* produce is `iolist`. This means there could be mixed
+All queries which *mekao* produce is `iodata()`. This means there could be mixed
 strings, binaries, chars, nested lists of strings and so on. Some drivers
-do accept `iolists`, others do not. It is up to application transform this to
+do accept `iodata()`, others do not. It is up to application transform this to
 any acceptable form.
 
 For more examples please see [test/mekao_tests.erl](test/mekao_tests.erl).
+
+# Records
+* [#mekao_settings{}](doc/records.md#mekao_settings)
+* [#mekao_table{}](doc/records.md#mekao_table)
+* [#mekao_column{}](doc/records.md#mekao_column)
+
+# Selectors
+
+Selectors is a way to adjust `WHERE` clause. When you pass record to `mekao`
+each field may contain regular value, or special predicate term.
+
+| SQL       | predicate                                     |
+| --------- | --------------------------------------------- |
+| `=`       | `{'$predicate',  '=', term()}`                |
+| `<>`      | `{'$predicate', '<>', term()}`                |
+| `>`       | `{'$predicate',  '>', term()}`                |
+| `>=`      | `{'$predicate', '>=', term()}`                |
+| `<`       | `{'$predicate',  '<', term()}`                |
+| `<=`      | `{'$predicate', '<=', term()}`                |
+| `LIKE`    | `{'$predicate', like, term()}`                |
+| `BETWEEN` | `{ '$predicate', 'between', term(), term()}`  |
+
+Example:
+```erlang
+DT1 = {{2013, 1, 1}, {0, 0, 0}},
+DT2 = {{2014, 1, 1}, {0, 0, 0}},
+
+mekao:select(
+    #book{
+        created = {'$predicate', between, DT1, DT2},
+        _       = '$skip'
+    }, ?TABLE_BOOKS, ?S
+).
+%% SELECT id, isbn, title, author, created FROM books
+%% WHERE created BETWEEN $1 AND $2
+```
+
+see `mekao:selector()` type spec.
+
+# Entities
+
+Basically when you changing some data you may pass regular value or '$skip' atom
+to exclude field from result.
+
+see `mekao:entity()` type spec.

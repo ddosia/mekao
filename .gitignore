@@ -1,5 +1,6 @@
 *~
 *.dump
+*.plt
 ebin/
 deps/
-.eunit
+.eunit/

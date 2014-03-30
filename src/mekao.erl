@@ -24,13 +24,12 @@
 -type s()       :: #mekao_settings{}.
 
 -type entity()      :: tuple() | list().
--type selector()    :: tuple() | list(predicate(term())).
+-type selector()    :: tuple() | list(predicate()).
 
--type predicate(Value) :: Value
-                        | { '$predicate'
-                          , '=' | '<>' | '>' | '>=' | '<' | '<='
-                          | like
-                          , Value}.
+-type predicate() :: term()
+                  | { '$predicate', 'between', term(), term()}
+                  | { '$predicate'
+                    , '=' | '<>' | '>' | '>=' | '<' | '<=' | like, term()}.
 
 %% generic query
 -type 'query'(Body) :: #mekao_query{body :: Body}.
@@ -47,7 +46,7 @@
 -export_type([
     table/0, column/0, s/0,
     p_query/0, b_query/0,
-    predicate/1
+    predicate/0
 ]).
 
 %% ===================================================================

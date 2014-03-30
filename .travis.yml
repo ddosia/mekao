@@ -6,4 +6,4 @@ branches:
   only:
     - master
     - devel
-script: make eunit
+script: make eunit build-plt dialyze

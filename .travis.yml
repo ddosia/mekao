@@ -6,3 +6,4 @@ branches:
   only:
     - master
     - devel
+script: make eunit

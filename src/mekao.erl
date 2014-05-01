@@ -208,10 +208,10 @@ prepare_insert(E, Table, S) ->
         returning   = returning(insert, Table, S)
     },
     #mekao_query{
-       body     = Q,
-       types    = Types,
-       values   = Vals,
-       next_ph_num = length(PHs) + 1
+        body     = Q,
+        types    = Types,
+        values   = Vals,
+        next_ph_num = length(PHs) + 1
     }.
 
 
@@ -236,10 +236,10 @@ prepare_select(E, Table, S) ->
         order_by    = order_by(OrderBy)
     },
     #mekao_query{
-       body     = Q,
-       types    = Types,
-       values   = Vals,
-       next_ph_num = length(PHs) + 1
+        body     = Q,
+        types    = Types,
+        values   = Vals,
+        next_ph_num = length(PHs) + 1
     }.
 
 
@@ -267,10 +267,10 @@ prepare_update(SetE, WhereE, Table = #mekao_table{columns = MekaoCols}, S) ->
         returning   = returning(update, Table, S)
     },
     #mekao_query{
-       body     = Q,
-       types    = SetTypes ++ WhereTypes,
-       values   = SetVals ++ WhereVals,
-       next_ph_num = SetPHsLen + WherePHsLen + 1
+        body     = Q,
+        types    = SetTypes ++ WhereTypes,
+        values   = SetVals ++ WhereVals,
+        next_ph_num = SetPHsLen + WherePHsLen + 1
     }.
 
 
@@ -285,10 +285,10 @@ prepare_delete(E, Table, S) ->
         returning   = returning(delete, Table, S)
     },
     #mekao_query{
-       body     = Q,
-       types    = Types,
-       values   = Vals,
-       next_ph_num = length(PHs) + 1
+        body     = Q,
+        types    = Types,
+        values   = Vals,
+        next_ph_num = length(PHs) + 1
     }.
 
 

@@ -44,28 +44,28 @@
 }).
 
 -record(mekao_select, {
-    columns     :: iodata(),
-    table       :: iodata(),
-    where       :: iodata(),
-    order_by    :: iodata()
+    columns     :: mekao:iotriple(),
+    table       :: mekao:iotriple(),
+    where       :: mekao:iotriple(),
+    order_by    :: mekao:iotriple()
 }).
 
 -record(mekao_insert, {
-    table       :: iodata(),
-    columns     :: iodata(),
-    values      :: iodata(),
-    returning   :: iodata()
+    table       :: mekao:iotriple(),
+    columns     :: mekao:iotriple(),
+    values      :: mekao:iotriple(),
+    returning   :: mekao:iotriple()
 }).
 
 -record(mekao_update, {
-    table       :: iodata(),
-    set         :: iodata(),
-    where       :: iodata(),
-    returning   :: iodata()
+    table       :: mekao:iotriple(),
+    set         :: mekao:iotriple(),
+    where       :: mekao:iotriple(),
+    returning   :: mekao:iotriple()
 }).
 
 -record(mekao_delete, {
-    table       :: iodata(),
-    where       :: iodata(),
-    returning   :: iodata()
+    table       :: mekao:iotriple(),
+    where       :: mekao:iotriple(),
+    returning   :: mekao:iotriple()
 }).

@@ -19,6 +19,8 @@
 
 -include("mekao.hrl").
 
+-type iotriple() :: iodata() | {iodata(), iodata(), iodata()}.
+
 -type table()   :: #mekao_table{}.
 -type column()  :: #mekao_column{}.
 -type s()       :: #mekao_settings{}.
@@ -46,6 +48,7 @@
 -type b_query() :: 'query'(iolist()).
 
 -export_type([
+    iotriple/0,
     table/0, column/0, s/0,
     p_query/0, b_query/0,
     predicate/0
@@ -297,10 +300,14 @@ build(Q = #mekao_query{body = Select}) when is_record(Select, mekao_select) ->
         where   = Where,
         order_by = OrderBy
     } = Select,
+
     Q#mekao_query{
         body = [
-            <<"SELECT ">>, Columns, <<" FROM ">>, Table, build_where(Where),
-            build_order_by(OrderBy)
+            untriplify(Columns, fun (C) -> [<<"SELECT ">>, C] end),
+            <<" ">>,
+            untriplify(Table, fun(C) -> [<<"FROM ">>, C] end),
+            untriplify(Where, fun build_where/1),
+            untriplify(OrderBy, fun build_order_by/1)
         ]
     };
 
@@ -311,10 +318,15 @@ build(Q = #mekao_query{body = Insert}) when is_record(Insert, mekao_insert) ->
         values       = Values,
         returning    = Return
     } = Insert,
+
     Q#mekao_query{
         body = [
-            <<"INSERT INTO ">>, Table, <<" (">>, Columns, <<") VALUES (">>,
-            Values, <<")">>, build_return(Return)
+            <<"INSERT ">>, untriplify(Table, fun(C) -> [<<"INTO ">>, C] end),
+            <<" ">>,
+            untriplify(Columns, fun (Cs) -> [<<"(">>, Cs, <<")">>] end),
+            <<" ">>,
+            untriplify(Values, fun (Vs) -> [<<"VALUES (">>, Vs, <<")">>] end),
+            untriplify(Return, fun build_return/1)
         ]
     };
 
@@ -327,8 +339,11 @@ build(Q = #mekao_query{body = Update}) when is_record(Update, mekao_update) ->
     } = Update,
     Q#mekao_query{
         body = [
-            <<"UPDATE ">>, Table, <<" SET ">>, Set,
-            build_where(Where), build_return(Return)
+            untriplify(Table, fun (C) -> [<<"UPDATE ">>, C] end),
+            <<" ">>,
+            untriplify(Set, fun (C) -> [<<"SET ">>, C] end),
+            untriplify(Where, fun build_where/1),
+            untriplify(Return, fun build_return/1)
         ]
     };
 
@@ -340,8 +355,10 @@ build(Q = #mekao_query{body = Delete}) when is_record(Delete, mekao_delete) ->
     } = Delete,
     Q#mekao_query{
         body = [
-            <<"DELETE FROM ">>, Table, build_where(Where),
-            build_return(Return)
+            <<"DELETE ">>,
+            untriplify(Table, fun(C) -> [<<"FROM ">>, C] end),
+            untriplify(Where, fun build_where/1),
+            untriplify(Return, fun build_return/1)
         ]
     }.
 
@@ -514,3 +531,8 @@ transform(undefined, V) ->
     V;
 transform(TrFun, V) when is_function(TrFun, 1) ->
     TrFun(V).
+
+untriplify({C1, C2, C3}, F) when is_function(F) ->
+    [C1, F(C2), C3];
+untriplify(C, F) ->
+    F(C).

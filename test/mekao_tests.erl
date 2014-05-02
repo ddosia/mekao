@@ -309,6 +309,132 @@ prepare_select_test() ->
     ).
 
 
+prepare_select_triple_test() ->
+    T = ?TABLE_BOOKS#mekao_table{order_by = [#book.title]},
+    #book{author = Author} = book(1),
+
+    Q = #mekao_query{
+        body = QBody = #mekao_select{
+            columns  = Cols,
+            table    = Table,
+            where    = Where,
+            order_by = OrderBy
+        }
+    } = mekao:prepare_select(
+        #book{author = Author, _ = '$skip'}, T, ?S
+    ),
+
+    NewQ = #mekao_query{body = NewQBody} =
+        mekao:build(Q#mekao_query{
+            body = QBody#mekao_select{
+                columns  = {<<"|1|">>, Cols,    <<"|2|">>},
+                table    = {<<"|3|">>, Table,   <<"|4|">>},
+                where    = {<<"|5|">>, Where,   <<"|6|">>},
+                order_by = {<<"|7|">>, OrderBy, <<"|8|">>}
+            }
+        }),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"|1|SELECT id, isbn, title, author, created|2|",
+                    " |3|FROM books|4||5| WHERE author = $1|6||7|",
+                    " ORDER BY 3|8|">>,
+            types = [varchar],
+            values = [Author]
+        },
+        NewQ#mekao_query{body = iolist_to_binary(NewQBody)}
+    ).
+
+
+prepare_insert_triple_test() ->
+    Q = #mekao_query{
+        body = QBody = #mekao_insert{
+            table        = Table,
+            columns      = Columns,
+            values       = Values
+        }
+    } = mekao:prepare_insert(book(1), ?TABLE_BOOKS, ?S),
+
+    NewQ = #mekao_query{body = NewQBody} =
+        mekao:build(Q#mekao_query{
+            body = QBody#mekao_insert{
+                table     = {<<"|1|">>, Table,   <<"|2|">>},
+                columns   = {<<"|3|">>, Columns, <<"|4|">>},
+                values    = {<<"|5|">>, Values,  <<"|6|">>},
+                returning = {<<"|7|">>, <<"RETURNING *">>, <<"|8|">>}
+            }
+        }),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"INSERT |1|INTO books|2|",
+                    " |3|(id, isbn, title, author, created)|4|",
+                    " |5|VALUES ($1, $2, $3, $4, $5)|6|",
+                    "|7| RETURNING *|8|">>
+        },
+        NewQ#mekao_query{body = iolist_to_binary(NewQBody)}
+    ).
+
+
+prepare_update_triple_test() ->
+    #book{id = Id, isbn = Isbn} = book(1),
+    Q = #mekao_query{
+        body = QBody = #mekao_update{
+            table       = Table,
+            set         = Set,
+            where       = Where
+        }
+    } = mekao:prepare_update(
+        #book{isbn = Isbn, _ = '$skip'},
+        #book{id = Id, _ = '$skip'},
+        ?TABLE_BOOKS, ?S
+    ),
+
+    NewQ = #mekao_query{body = NewQBody} =
+        mekao:build(Q#mekao_query{
+            body = QBody#mekao_update{
+                table     = {<<"|1|">>, Table, <<"|2|">>},
+                set       = {<<"|3|">>, Set,   <<"|4|">>},
+                where     = {<<"|5|">>, Where, <<"|6|">>},
+                returning = {<<"|7|">>, <<"RETURNING *">>, <<"|8|">>}
+            }
+        }),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"|1|UPDATE books|2| |3|SET isbn = $1|4|",
+                    "|5| WHERE id = $2|6||7| RETURNING *|8|">>,
+            types   = [varchar, int],
+            values  = [Isbn, Id]
+        },
+        NewQ#mekao_query{body = iolist_to_binary(NewQBody)}
+    ).
+
+
+prepare_delete_triple_test() ->
+    Q = #mekao_query{
+        body = QBody = #mekao_delete{
+            table = Table,
+            where = Where
+        }
+    } = mekao:prepare_delete(#book{id = 1, _ = '$skip'}, ?TABLE_BOOKS, ?S),
+
+    NewQ = #mekao_query{body = NewQBody} =
+        mekao:build(Q#mekao_query{
+            body = QBody#mekao_delete{
+                table     = {<<"|1|">>, Table, <<"|2|">>},
+                where     = {<<"|3|">>, Where, <<"|4|">>},
+                returning = {<<"|5|">>, <<"RETURNING *">>, <<"|6|">>}
+            }
+        }),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"DELETE |1|FROM books|2||3| WHERE id = $1|4||5|",
+                    " RETURNING *|6|">>,
+            types   = [int],
+            values  = [1]
+        },
+        NewQ#mekao_query{body = iolist_to_binary(NewQBody)}
+    ).
+
+
 select_pk_test() ->
     ?assertMatch(
         #mekao_query{

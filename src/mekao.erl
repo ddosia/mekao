@@ -1,8 +1,10 @@
 -module(mekao).
 
+-include_lib("eunit/include/eunit.hrl").
+
 %% API
 -export([
-    select_pk/3, select/3,
+    select_pk/3, select/3, select/4,
     insert/3,
     update_pk/3,
     update_pk_diff/4,
@@ -10,7 +12,7 @@
     delete_pk/3,
     delete/3,
 
-    prepare_select/3,
+    prepare_select/3, prepare_select/4,
     prepare_insert/3,
     prepare_update/4,
     prepare_delete/3,
@@ -35,6 +37,9 @@
                     , term()
                     }.
 
+-type select_opt() :: {limit, { RowCount :: non_neg_integer()
+                              , Offset   :: non_neg_integer()}}.
+
 %% generic query
 -type 'query'(Body) :: #mekao_query{body :: Body}.
 
@@ -50,7 +55,7 @@
 -export_type([
     iotriple/0,
     table/0, column/0, s/0,
-    p_query/0, b_query/0,
+    'query'/1, p_query/0, b_query/0,
     predicate/0
 ]).
 
@@ -91,9 +96,13 @@ select_pk(E, Table, S) ->
 -spec select(selector(), table(), s()) -> {ok, b_query()}.
 %% @doc Selects several entities, omits columns with `$skip' value.
 select(E, Table, S) ->
+    select(E, [], Table, S).
+
+-spec select(selector(), [select_opt()], table(), s()) -> {ok, b_query()}.
+select(E, Opts, Table, S) ->
     SkipFun = fun(_, V) -> V == '$skip' end,
     {ok, build(prepare_select(
-        skip(SkipFun, Table#mekao_table.columns, e2l(E)), Table, S
+        skip(SkipFun, Table#mekao_table.columns, e2l(E)), Opts, Table, S
     ))}.
 
 
@@ -217,6 +226,11 @@ prepare_insert(E, Table, S) ->
 
 -spec prepare_select(selector(), table(), s()) -> p_query().
 prepare_select(E, Table, S) ->
+    prepare_select(E, [], Table, S).
+
+
+-spec prepare_select(selector(), [select_opt()], table(), s()) -> p_query().
+prepare_select(E, Opts, Table, S) ->
     #mekao_table{
         columns = MekaoCols,
         order_by = OrderBy
@@ -235,12 +249,14 @@ prepare_select(E, Table, S) ->
         where       = Where,
         order_by    = order_by(OrderBy)
     },
-    #mekao_query{
-        body     = Q,
-        types    = Types,
-        values   = Vals,
-        next_ph_num = length(PHs) + 1
-    }.
+    limit(
+        #mekao_query{
+            body     = Q,
+            types    = Types,
+            values   = Vals,
+            next_ph_num = length(PHs) + 1
+        }, Opts, S
+    ).
 
 
 -spec prepare_update(entity(), selector(), table(), s()) -> p_query().
@@ -441,6 +457,21 @@ where({[C | Cs], [PH | PHs], [T | Types], [V | Vals]}, S) ->
     {Ws, {ResPHs, ResTs, ResVs}} = where({Cs, PHs, Types, Vals}, S),
     {[W, <<" AND ">> | Ws],
         {NewPHs ++ ResPHs, NewTs ++ ResTs, NewVs ++ ResVs}}.
+
+
+limit( PSelect, Opts, #mekao_settings{limit = undefined}) ->
+    %% intentional error:badmatch in case if `limit' was specified but
+    %% `#mekao_settings.limit' was not
+    undefined = proplists:get_value(limit, Opts),
+    PSelect;
+limit( PSelect, Opts, #mekao_settings{limit = LimitFun}
+     ) when is_function(LimitFun, 3) ->
+    case proplists:get_value(limit, Opts) of
+        undefined ->
+            PSelect;
+        {RowCount, Offset} ->
+            #mekao_query{} = LimitFun(PSelect, RowCount, Offset)
+    end.
 
 
 %% TODO: add NOT, IN, ANY, ALL, BETWEEN handling

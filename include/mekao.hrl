@@ -1,41 +1,3 @@
--record(mekao_column, {
-    name        :: iodata(),        %% sql column name
-    type        :: term(),          %% sql datatype, acceptable by underlying
-                                    %% driver
-    key = false :: boolean(),       %% primary key part
-    ro  = false :: boolean(),       %% readonly
-    transform   :: undefined
-                 | fun ((Val :: term()) -> NewVal :: term())
-}).
-
--record(mekao_table, {
-    name            :: iodata(),
-    columns = []    :: [mekao:column()],
-    %% order by column position or by arbitrary expression
-    order_by = []   :: [ non_neg_integer() % record's field pos
-                       | iodata()          % arbitrary expression
-                       | { non_neg_integer() | iodata()
-                         , { asc | desc | default
-                           , nulls_first | nulls_last | default}
-                         }
-                       ]
-}).
-
--record(mekao_settings, {
-    %% different db drivers have different placeholders.
-    %% pgsql accepts placeholders in form of `"$1, $2, ... $N"'.
-    %% odbc driver accepts phs in form of `"?, ?, ..., ?"'
-    placeholder :: fun( ( mekao:column()
-                        , Num :: non_neg_integer()
-                        , Val :: term()
-                        ) -> iodata()),
-
-    returning :: undefined
-               | fun(( insert | update | delete, mekao:table()) -> iodata()),
-
-    is_null = fun mekao_utils:is_null/1 :: fun((Value :: term()) -> boolean())
-}).
-
 -record(mekao_query, {
     body,
     types  = []     :: [term()],
@@ -68,4 +30,48 @@
     table       :: mekao:iotriple(),
     where       :: mekao:iotriple(),
     returning   :: mekao:iotriple()
+}).
+
+-record(mekao_column, {
+    name        :: iodata(),        %% sql column name
+    type        :: term(),          %% sql datatype, acceptable by underlying
+                                    %% driver
+    key = false :: boolean(),       %% primary key part
+    ro  = false :: boolean(),       %% readonly
+    transform   :: undefined
+                 | fun ((Val :: term()) -> NewVal :: term())
+}).
+
+-record(mekao_table, {
+    name            :: iodata(),
+    columns = []    :: [mekao:column()],
+    %% order by column position or by arbitrary expression
+    order_by = []   :: [ non_neg_integer() % record's field pos
+                       | iodata()          % arbitrary expression
+                       | { non_neg_integer() | iodata()
+                         , { asc | desc | default
+                           , nulls_first | nulls_last | default}
+                         }
+                       ]
+}).
+
+-record(mekao_settings, {
+    %% different db drivers have different placeholders.
+    %% pgsql accepts placeholders in form of `"$1, $2, ... $N"'.
+    %% odbc driver accepts phs in form of `"?, ?, ..., ?"'
+    placeholder :: fun( ( mekao:column()
+                        , Num :: non_neg_integer()
+                        , Val :: term()
+                        ) -> iodata()),
+
+    limit :: undefined
+           | fun( ( mekao:'query'(#mekao_select{})
+                  , RowCount :: non_neg_integer()
+                  , Offset :: non_neg_integer()
+                  ) -> mekao:'query'(#mekao_select{})),
+
+    returning :: undefined
+               | fun(( insert | update | delete, mekao:table()) -> iodata()),
+
+    is_null = fun mekao_utils:is_null/1 :: fun((Value :: term()) -> boolean())
 }).

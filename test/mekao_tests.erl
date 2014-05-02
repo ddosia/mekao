@@ -17,7 +17,7 @@
 }).
 
 -define(S, #mekao_settings{
-    placeholder = fun (_, Pos, _) -> [$$ | integer_to_list(Pos)] end
+    placeholder = fun (_, Pos, _) -> mk_ph(Pos) end
 }).
 
 %%%===================================================================
@@ -148,6 +148,80 @@ returning_test_() ->
             })
         )
     ].
+
+
+limit_test_() ->
+    RowCount0 = 10,
+    Offset0   = 40,
+    S = ?S#mekao_settings{
+        limit = fun
+            (Q, RowCount, Offset) ->
+                #mekao_query{
+                    body   = QBody,
+                    types  = Types,
+                    values = Vals,
+                    next_ph_num = Num
+                } = Q,
+                #mekao_select{where = Where} = QBody,
+                Q#mekao_query{
+                    body = QBody#mekao_select{
+                        where = {<<"">>, Where, [
+                            <<" LIMIT ">>, mk_ph(Num),
+                            <<" OFFSET ">>, mk_ph(Num + 1)
+                        ]}
+                    },
+                    types = Types ++ [int, int],
+                    values = Vals ++ [RowCount, Offset],
+                    next_ph_num = Num + 2
+                }
+
+        end
+    },
+    [
+        ?_assertMatch(
+            #mekao_query{
+                body = <<"SELECT id, isbn, title, author, created FROM books",
+                        " LIMIT $1 OFFSET $2">>,
+                types  = [int, int],
+                values = [RowCount0, Offset0],
+                next_ph_num = 3
+            },
+            mk_call(
+                select,
+                #book{_ = '$skip' },
+                [{limit, {RowCount0, Offset0}}],
+                ?TABLE_BOOKS, S
+            )
+        ),
+        ?_assertMatch(
+            #mekao_query{
+                body = <<"SELECT id, isbn, title, author, created FROM books",
+                        " WHERE title LIKE $1 LIMIT $2 OFFSET $3">>,
+                types  = [varchar, int, int],
+                values = [<<"%Erlang%">>, RowCount0, Offset0],
+                next_ph_num = 4
+            },
+            mk_call(
+                select,
+                #book{
+                    title = {'$predicate', like, <<"%Erlang%">>},
+                    _ = '$skip'
+                },
+                [{limit, {RowCount0, Offset0}}],
+                ?TABLE_BOOKS, S
+            )
+        ),
+        ?_assertException(
+            error, {badmatch, {RowCount0, Offset0}},
+            mk_call(
+                select,
+                #book{_ = '$skip'},
+                [{limit, {RowCount0, Offset0}}],
+                ?TABLE_BOOKS, ?S
+            )
+        )
+    ].
+
 
 column_type_test() ->
     Table0 = #mekao_table{columns = Cols} = ?TABLE_BOOKS,
@@ -290,7 +364,7 @@ prepare_select_test() ->
     NewQ = #mekao_query{body = NewQBody} =
         mekao:build(Q#mekao_query{
             body = QBody#mekao_select{
-                where = [Where, <<" OR author = $">>, integer_to_list(Num)]
+                where = [Where, <<" OR author = ">>, mk_ph(Num)]
             },
             types = Types ++ [int],
             values = Vals ++ [Author2],
@@ -636,3 +710,10 @@ mk_call(CallName, E, Table) ->
 mk_call(CallName, E, Table, S) ->
     {ok, Q = #mekao_query{body = B}} = mekao:CallName(E, Table, S),
     Q#mekao_query{body = iolist_to_binary(B)}.
+
+mk_call(CallName, E, Opts, Table, S) ->
+    {ok, Q = #mekao_query{body = B}} = mekao:CallName(E, Opts, Table, S),
+    Q#mekao_query{body = iolist_to_binary(B)}.
+
+mk_ph(N) when is_integer(N) ->
+    [$$ | integer_to_list(N)].

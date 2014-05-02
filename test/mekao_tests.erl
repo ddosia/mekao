@@ -274,33 +274,7 @@ between_test() ->
         )
     ).
 
-
-prepare_select1_test() ->
-    #book{author = Author} = book(1),
-    Q = #mekao_query{body = QBody = #mekao_select{where = Where}} =
-        mekao:prepare_select(
-            #book{author = Author, _ = '$skip'}, ?TABLE_BOOKS, ?S
-        ),
-
-    NewQ = #mekao_query{body = NewQBody} =
-        mekao:build(Q#mekao_query{
-            body = QBody#mekao_select{
-                where = [Where, <<" AND created >= now() - interval '7 day'">>]
-            }
-        }),
-
-    ?assertMatch(
-        #mekao_query{
-            body = <<"SELECT id, isbn, title, author, created FROM books",
-                    " WHERE author = $1 AND created >= now() - interval",
-                    " '7 day'">>,
-            types = [varchar],
-            values = [Author]
-        },
-        NewQ#mekao_query{body = iolist_to_binary(NewQBody)}
-    ).
-
-prepare_select2_test() ->
+prepare_select_test() ->
     #book{author = Author} = book(1),
     Author2 = <<"Francesco Cesarini">>,
 
@@ -317,7 +291,10 @@ prepare_select2_test() ->
         mekao:build(Q#mekao_query{
             body = QBody#mekao_select{
                 where = [Where, <<" OR author = $">>, integer_to_list(Num)]
-            }
+            },
+            types = Types ++ [int],
+            values = Vals ++ [Author2],
+            next_ph_num = Num + 1
         }),
 
     ?assertMatch(
@@ -325,13 +302,10 @@ prepare_select2_test() ->
             body = <<"SELECT id, isbn, title, author, created FROM books",
                     " WHERE author = $1 OR author = $2">>,
             types = [varchar, int],
-            values = [Author, Author2]
+            values = [Author, Author2],
+            next_ph_num = 3
         },
-        NewQ#mekao_query{
-            body = iolist_to_binary(NewQBody),
-            types = Types ++ [int],
-            values = Vals ++ [Author2]
-        }
+        NewQ#mekao_query{body = iolist_to_binary(NewQBody)}
     ).
 
 

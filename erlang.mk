@@ -268,9 +268,11 @@ dialyze:
 	@dialyzer --src src --no_native $(DIALYZER_OPTS)
 
 eunit: deps .eunit
+	$(eval MODULES := $(shell find .eunit/ -type f -name "*.beam" \
+		-and -not -name "*_tests.beam"))
 	@export EUNIT=$(EUNIT_OPTS) && erl \
 		-pa .eunit -pa $(DEPS_DIR)/*/ebin/ \
-		-run eunit test .eunit/*.beam \
+		-run eunit test $(MODULES) \
 		-run init stop \
 		-noshell -noinput
 

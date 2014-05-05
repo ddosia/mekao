@@ -6,14 +6,28 @@
 
 ## #mekao_settings{}
 This record contains general setting.
+```erlang
+-record(mekao_settings, {
+    placeholder :: fun( ( mekao:column()
+                        , Num :: non_neg_integer()
+                        , Val :: term()
+                        ) -> iodata()),
+
+    limit :: undefined
+           | fun( ( mekao:'query'(#mekao_select{})
+                  , RowCount :: non_neg_integer()
+                  , Offset :: non_neg_integer()
+                  ) -> mekao:'query'(#mekao_select{})),
+
+    returning :: undefined
+               | fun(( insert | update | delete, mekao:table()) -> iodata()),
+
+    is_null = fun mekao_utils:is_null/1 :: fun((Value :: term()) -> boolean())
+}).
+```
 
 ### placeholder
-```erlang
-#mekao_settings{
-    placeholder :: fun((mekao:column(), Num :: non_neg_integer(), Val :: term()) -> iodata())
-}.
-```
-Purpose of this function is to produce WHERE clause placeholders.
+Produce WHERE clause placeholders.
 
 Example:
 ```erlang
@@ -23,14 +37,35 @@ Example:
 ```
 See [#mekao_column{}](#mekao_column)
 
-### returning
+### limit
+If defined will be used in select functions to limit result.
+
+Example:
 ```erlang
 #mekao_settings{
-    returning :: undefined | fun((insert | update | delete, mekao:table()) -> iodata())
+    limit = fun
+        (Q, RowCount, Offset) ->
+            #mekao_query{
+                body = #mekao_select{where = Where} = QBody,
+                types = Types, values = Vals, next_ph_num = Num
+            } = Q,
+            Q#mekao_query{
+                body = QBody#mekao_select{
+                    where = {<<"">>, Where, [
+                        <<" LIMIT ">>, mk_ph(Num),
+                        <<" OFFSET ">>, mk_ph(Num + 1)
+                    ]}
+                },
+                types = Types ++ [int, int],
+                values = Vals ++ [RowCount, Offset],
+                next_ph_num = Num + 2
+            }
+    end
 }.
 ```
-This fun is intended to produce RETURNING clause for INSERT, UPDATE or DELETE
-queries.
+
+### returning
+Produce RETURNING clause for INSERT, UPDATE or DELETE queries.
 
 Example:
 ```erlang
@@ -40,14 +75,9 @@ Example:
 ```
 
 ### is_null
-```erlang
-#mekao_settings{
-    is_null :: fun((Value :: term()) -> boolean())
-}.
-```
-This fun is intended to check value and return true if it IS NULL,
-false otherwise. Used when compose WHERE clause and produce
-`WHERE column IS NULL` instead of `WHERE column = NULL`
+Check value and return true if it `IS NULL`, false otherwise. Is used to
+compose WHERE clause and produce `WHERE column IS NULL` instead of
+`WHERE column = NULL`.
 
 Example:
 ```erlang
@@ -62,21 +92,32 @@ Example:
 
 ## #mekao_table{}
 This record describes SQL table.
+```erlang
+-record(mekao_table, {
+    name            :: iodata(),
+    columns = []    :: [mekao:column()],
+    %% order by column position or by arbitrary expression
+    order_by = []   :: [ non_neg_integer() % record's field pos
+                       | iodata()          % arbitrary expression
+                       | { non_neg_integer() | iodata()
+                         , { asc | desc | default
+                           , nulls_first | nulls_last | default}
+                         }
+                       ]
+}).
+```
 
 ### name
-```erlang
-#mekao_settings{
-    name :: iodata()
-}.
-```
 Table name
 
-### columns
+Example:
 ```erlang
-#mekao_settings{
-    columns = [] :: [mekao:column()]
+#mekao_table{
+    name = <<"books">>
 }.
 ```
+
+### columns
 List of table columns. Order matters. Each column position must be the same
 as a corresponding record field.
 
@@ -94,51 +135,45 @@ Example:
 See [#mekao_column{}](#mekao_column)
 
 ### order_by
-```erlang
-#mekao_settings{
-    order_by = [] :: [ non_neg_integer() % record's field pos
-                     | iodata()          % arbitrary expression
-                     | { non_neg_integer() | iodata()
-                       , { asc | desc | default
-                         , nulls_first | nulls_last | default}
-                       }
-                     ]
-}.
-```
-List of record's field positions and/or expressions to sort result of
-`select*` queries.
-
-Important note, this is not a position of column in SELECT.
+List of positions and/or arbitrary expressions to sort result of select queries.
 
 Example:
 ```erlang
 -record(book, {id, isbn}).
 
 #mekao_table{
-    order_by = [#book.isbn]
+    order_by = [#book.isbn, <<"isbn">>]
 }.
-%% SELECT id, isbn FROM ... ORDER BY 2
+%% SELECT id, isbn FROM ... ORDER BY 2, isbn
 %% although you could see that `isbn` have `2` position in SELECT statement,
 %% #mekao_table.order_by expects number `3` (`#book.isbn = 3`).
 ```
 
 ## #mekao_column{}
 This record is intended to describe particular column.
+```erlang
+-record(mekao_column, {
+    name        :: iodata(),        %% sql column name
+    type        :: term(),          %% sql datatype, acceptable by underlying
+                                    %% driver
+    key = false :: boolean(),       %% primary key part
+    ro  = false :: boolean(),       %% readonly
+    transform   :: undefined
+                 | fun ((Val :: term()) -> NewVal :: term())
+}).
+```
 
 ### name
+Column name as in SQL table.
+
+Example:
 ```erlang
-#mekao_settings{
-    name :: iodata()
+#mekao_column{
+    name = <<"author">>
 }.
 ```
-Column name as it is named in SQL table.
 
 ### type
-```erlang
-#mekao_settings{
-    type :: term()
-}.
-```
 Column type. Could be used later by underlying db driver.
 
 Example:
@@ -149,33 +184,20 @@ Example:
 ```
 
 ### key
-```erlang
-#mekao_settings{
-    key = false :: boolean()
-}.
-```
-True if this is a primary key, false otherwise.
+True if this is a part of primary key, false otherwise.
 
 Have special meaning for some operations suffixed whit `_pk`
 (i.e. `mekao:select_pk/3`).
 
 ### ro
-```erlang
-#mekao_settings{
-    ro  = false :: boolean()
-}.
-```
 True if this field is read only.
 
 Read only fields will be skipped during inserts and updates.
 
 ### transform
-```erlang
-#mekao_settings{
-    transform :: undefined | fun ((Val :: term()) -> NewVal :: term())
-}.
-```
-Sometimes values should be grained before we feed it to db driver. Example:
+Sometimes values should be grained before we feed it to db driver.
+
+Example:
 ```erlang
 #mekao_column{
     name = <<"mamal_type">>
@@ -184,7 +206,7 @@ Sometimes values should be grained before we feed it to db driver. Example:
         fun (human) -> 0;
             (dog) -> 1;
             (cat) -> 2;
-            (whale) -> 65531
+            (whale) -> 65535
         end
 }.
 ```

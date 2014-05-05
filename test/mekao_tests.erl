@@ -157,12 +157,9 @@ limit_test_() ->
         limit = fun
             (Q, RowCount, Offset) ->
                 #mekao_query{
-                    body   = QBody,
-                    types  = Types,
-                    values = Vals,
-                    next_ph_num = Num
+                    body = #mekao_select{where = Where} = QBody,
+                    types = Types, values = Vals, next_ph_num = Num
                 } = Q,
-                #mekao_select{where = Where} = QBody,
                 Q#mekao_query{
                     body = QBody#mekao_select{
                         where = {<<"">>, Where, [
@@ -174,7 +171,6 @@ limit_test_() ->
                     values = Vals ++ [RowCount, Offset],
                     next_ph_num = Num + 2
                 }
-
         end
     },
     [

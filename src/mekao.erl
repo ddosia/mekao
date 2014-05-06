@@ -1,7 +1,5 @@
 -module(mekao).
 
--include_lib("eunit/include/eunit.hrl").
-
 %% API
 -export([
     select_pk/3, select/3, select/4,

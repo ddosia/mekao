@@ -3,7 +3,7 @@
 %% API
 -export([
     select_pk/3, select/3, select/4,
-    insert/3,
+    insert/3, insert_all/3,
     update_pk/3,
     update_pk_diff/4,
     update/4,
@@ -11,7 +11,7 @@
     delete/3,
 
     prepare_select/3, prepare_select/4,
-    prepare_insert/3,
+    prepare_insert/3, prepare_insert_all/3,
     prepare_update/4,
     prepare_delete/3,
     build/1
@@ -63,13 +63,30 @@
 %% API functions
 %% ===================================================================
 
--spec insert(entity(), table(), s()) -> {ok, b_query()}
-                                      | {error, empty_insert}.
+-spec insert( entity(), table(), s()
+            ) -> {ok, b_query()} | {error, empty_insert}.
 %% @doc Inserts entity, omits columns with `$skip' value.
 insert(E, Table, S) ->
     SkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
     Q = prepare_insert(
         skip(SkipFun, Table#mekao_table.columns, e2l(E)), Table, S
+    ),
+
+    if Q#mekao_query.values /= [] ->
+        {ok, build(Q)};
+    true ->
+        {error, empty_insert}
+    end.
+
+
+-spec insert_all( [entity(), ...], table(), s()
+                ) -> {ok, b_query()} | {error, empty_insert}.
+%% @doc Inserts entities, places `DEFAULT' keyword when column with `$skip'
+%%      value occurs.
+insert_all(Es = [_ | _], Table, S) ->
+    SkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
+    Q = prepare_insert_all(
+        [skip(SkipFun, Table#mekao_table.columns, e2l(E)) || E <- Es], Table, S
     ),
     if Q#mekao_query.values /= [] ->
         {ok, build(Q)};
@@ -217,16 +234,56 @@ prepare_insert(E, Table, S) ->
     {NextNum, {Cols, PHs, Types, Vals}} =
         qdata(1, e2l(E), Table#mekao_table.columns, S),
     Q = #mekao_insert{
-        table       = Table#mekao_table.name,
-        columns     = mekao_utils:intersperse(Cols, <<", ">>),
-        values      = mekao_utils:intersperse(PHs, <<", ">>),
-        returning   = returning(insert, Table, S)
+        table   = Table#mekao_table.name,
+        columns = mekao_utils:intersperse(Cols, <<", ">>),
+        values  = [<<"(">>, mekao_utils:intersperse(PHs, <<", ">>), <<")">>],
+        returning = returning(insert, Table, S)
+    },
+    #mekao_query{
+        body    = Q,
+        types   = Types,
+        values  = Vals,
+        next_ph_num = NextNum
+    }.
+
+
+-spec prepare_insert_all([entity(), ...], table(), s()) -> p_query().
+prepare_insert_all(Es = [_ | _], Table, S) ->
+    MekaoCols = Table#mekao_table.columns,
+    {ResNum, {RevPHs, RevTypes, RevVals}} =
+        lists:foldl(
+            fun(E, {AccNum, {AccPHs, AccTypes, AccVals}}) ->
+                {NextNum, {PHs, Types, Vals}} =
+                    qdata_insert(AccNum, e2l(E), MekaoCols, S),
+                {NextNum, {
+                    [PHs | AccPHs],
+                    lists:reverse(Types) ++ AccTypes,
+                    lists:reverse(Vals) ++ AccVals
+                }}
+            end, {1, {[], [], []}}, Es
+        ),
+
+    Q = #mekao_insert{
+        table = Table#mekao_table.name,
+        columns =
+            mekao_utils:intersperse(
+                MekaoCols, <<", ">>,
+                fun(#mekao_column{name = Name}) -> Name end
+            ),
+        values =
+            mekao_utils:intersperse(
+                lists:reverse(RevPHs), <<", ">>,
+                fun(PHs) ->
+                    [<<"(">>, mekao_utils:intersperse(PHs, <<", ">>), <<")">>]
+                end
+            ),
+        returning = returning(insert, Table, S)
     },
     #mekao_query{
         body     = Q,
-        types    = Types,
-        values   = Vals,
-        next_ph_num = NextNum
+        types    = lists:reverse(RevTypes),
+        values   = lists:reverse(RevVals),
+        next_ph_num = ResNum
     }.
 
 
@@ -348,7 +405,7 @@ build(Q = #mekao_query{body = Insert}) when is_record(Insert, mekao_insert) ->
             <<" ">>,
             untriplify(Columns, fun (Cs) -> [<<"(">>, Cs, <<")">>] end),
             <<" ">>,
-            untriplify(Values, fun (Vs) -> [<<"VALUES (">>, Vs, <<")">>] end),
+            untriplify(Values, fun (Vs) -> [<<"VALUES ">>, Vs] end),
             untriplify(Return, fun build_return/1)
         ]
     };
@@ -425,6 +482,25 @@ qdata(Num, [Pred | Vals], [#mekao_column{name = CName} = Col | Cols], S) ->
         [NewV | ResVals]}}.
 
 
+qdata_insert(Num, [], [], _) ->
+    {Num, {[], [], []}};
+
+qdata_insert(Num, ['$skip' | Vals], [_Col | Cols], S) ->
+    {ResNum, {ResPHs, ResTypes, ResVals}} = qdata_insert(
+        Num, Vals, Cols, S
+    ),
+    {ResNum, {[<<"DEFAULT">> | ResPHs], ResTypes, ResVals}};
+
+qdata_insert(Num, [Pred | Vals], [Col | Cols], S) ->
+    {NextNum, NewPH, NewT, NewV} = qdata_plain_predicate(Num, Pred, Col, S),
+
+    {ResNum, {ResPHs, ResTypes, ResVals}} = qdata_insert(
+        NextNum, Vals, Cols, S
+    ),
+
+    {ResNum, {[NewPH | ResPHs], [NewT | ResTypes], [NewV | ResVals]}}.
+
+
 qdata_predicate(Num, {'$predicate', 'not', Pred}, Col, S) ->
     {NextNum, NewPH, NewT, NewV} = qdata_predicate(Num, Pred, Col, S),
     {NextNum, NewPH, NewT, {'$predicate', 'not', NewV}};
@@ -468,6 +544,10 @@ qdata_predicate(Num, {'$predicate', Op, V}, Col, S) ->
     {Num + 1, PH, T, {'$predicate', Op, TransV}};
 
 qdata_predicate(Num, V, Col, S) ->
+    qdata_plain_predicate(Num, V, Col, S).
+
+
+qdata_plain_predicate(Num, V, Col, S) ->
     #mekao_settings{placeholder = PHFun} = S,
     #mekao_column{type = T, transform = TrFun} = Col,
 

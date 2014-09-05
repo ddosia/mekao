@@ -650,6 +650,29 @@ insert_test() ->
         mk_call(insert, Book)
     ).
 
+insert_all_test() ->
+    #book{isbn = Isbn, title = Title, author = Author} = book(1),
+        R = mk_call(
+            insert_all, [
+                #book{isbn = Isbn, _ = '$skip'},
+                #book{title = Title, _ = '$skip'},
+                #book{author = Author, _ = '$skip'}
+            ]
+        ),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"INSERT INTO books (id, isbn, title, author, created)",
+                    " VALUES "
+                        "(DEFAULT, $1, DEFAULT, DEFAULT, DEFAULT), "
+                        "(DEFAULT, DEFAULT, $2, DEFAULT, DEFAULT), "
+                        "(DEFAULT, DEFAULT, DEFAULT, $3, DEFAULT)"
+                   >>,
+            types = [varchar, varchar, varchar],
+            values = [Isbn, Title, Author]
+        },
+        R
+    ).
+
 
 update_test() ->
     #book{isbn = Isbn, title = Title} = book(1),

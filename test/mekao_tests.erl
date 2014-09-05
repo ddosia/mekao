@@ -600,20 +600,40 @@ update_pk_diff_test() ->
 
 
 %% @doc When key is not read only, it must be changeable.
-update_pk_diff_key_changed_test() ->
+update_key_changed_test() ->
     TBooks = #mekao_table{columns = Cols} = ?TABLE_BOOKS,
     IdCol = #mekao_column{key = true, ro = true}
         = lists:keyfind(<<"id">>, #mekao_column.name, Cols),
     NewCols = lists:keystore(
         <<"id">>, #mekao_column.name, Cols, IdCol#mekao_column{ro = false}
     ),
+    NewTBooks = TBooks#mekao_table{columns = NewCols},
 
-    Book = #book{title = Title} = book(2),
+    Title = <<"NewTitle">>,
 
-    {ok, UpdatePKDiffQ = #mekao_query{body = UpdatePKDiffQBody}}
+    {ok, Q1 = #mekao_query{body = QBody1}}
+        = mekao:update(
+            #book{id = 2, title = Title, _ = '$skip'},
+            #book{id = 1, _ = '$skip'},
+            NewTBooks,
+            ?S
+        ),
+
+
+    {ok, Q2 = #mekao_query{body = QBody2}}
+        = mekao:update_pk(
+            #book{id = 1, title = Title, _ = '$skip'},
+            NewTBooks,
+            ?S
+        ),
+
+    Book = book(1),
+    {ok, Q3 = #mekao_query{body = QBody3}}
         = mekao:update_pk_diff(
-            Book#book{id = 1, title = <<"Unknown">>}, Book,
-            TBooks#mekao_table{columns = NewCols}, ?S
+            Book,
+            Book#book{id = 2, title = Title},
+            NewTBooks,
+            ?S
         ),
 
     ?assertMatch(
@@ -622,8 +642,28 @@ update_pk_diff_key_changed_test() ->
             types = [int, varchar, int],
             values = [2, Title, 1]
         },
-        UpdatePKDiffQ#mekao_query{
-            body = iolist_to_binary(UpdatePKDiffQBody)
+        Q1#mekao_query{
+            body = iolist_to_binary(QBody1)
+        }
+    ),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"UPDATE books SET title = $1 WHERE id = $2">>,
+            types = [varchar, int],
+            values = [Title, 1]
+        },
+        Q2#mekao_query{
+            body = iolist_to_binary(QBody2)
+        }
+    ),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"UPDATE books SET id = $1, title = $2 WHERE id = $3">>,
+            types = [int, varchar, int],
+            values = [2, Title, 1]
+        },
+        Q3#mekao_query{
+            body = iolist_to_binary(QBody3)
         }
     ).
 

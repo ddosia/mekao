@@ -110,7 +110,10 @@ select(E, Opts, Table, S) ->
 %% @doc Updates entity by it's primary key, omits columns with `$skip' value.
 update_pk(E, Table = #mekao_table{columns = MekaoCols}, S) ->
 
-    SetSkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
+    SetSkipFun =
+        fun(#mekao_column{ro = RO, key = Key}, V) ->
+            RO orelse V == '$skip' orelse Key
+        end,
     WhereSkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
 
     Vals = e2l(E),
@@ -131,7 +134,8 @@ update_pk(E, Table = #mekao_table{columns = MekaoCols}, S) ->
                     ) -> {ok, b_query()}
                        | {error, pk_miss}
                        | {error, empty_update}.
-%% @doc Updates only changed fields by primary key.
+%% @doc Updates only changed fields by primary key. This is possible to update
+%%      PK as well if it is not `ro = true'.
 update_pk_diff(E1, E2, Table = #mekao_table{columns = MekaoCols}, S) ->
     Vals1 = e2l(E1),
     Vals2 = e2l(E2),
@@ -162,7 +166,8 @@ update_pk_diff(E1, E2, Table = #mekao_table{columns = MekaoCols}, S) ->
 -spec update(entity(), selector(), table(), s()) -> {ok, b_query()}
                                                   | {error, empty_update}.
 %% @doc Updates entities, composes WHERE clause from `Selector'
-%%      non `$skip' fields.
+%%      non `$skip' fields. This is possible to update PK as well if it
+%%      is not `ro = true'.
 update(E, Selector, Table = #mekao_table{columns = MekaoCols}, S) ->
     SetSkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
     WhereSkipFun = fun(_, V) -> V == '$skip' end,

@@ -133,7 +133,8 @@ each field may contain regular value, or special predicate term.
 | `<`       | `{'$predicate',  '<', term()}`                |
 | `<=`      | `{'$predicate', '<=', term()}`                |
 | `LIKE`    | `{'$predicate', like, term()}`                |
-| `BETWEEN` | `{ '$predicate', 'between', term(), term()}`  |
+| `BETWEEN` | `{'$predicate', 'between', term(), term()}`   |
+| `IN`      | `{'$predicate', in, [term(), ...]}`           |
 
 Example:
 ```erlang

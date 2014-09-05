@@ -344,6 +344,51 @@ between_test() ->
         )
     ).
 
+in_test() ->
+    ?assertMatch(
+        #mekao_query{
+            body = <<"SELECT id, isbn, title, author, created FROM books",
+                    " WHERE id IN ($1, $2, $3, $4)">>,
+            types = [int, int, int, int],
+            values = [1, 2, 3, 4]
+        },
+        mk_call(
+            select, #book{id = {'$predicate', in, [1, 2, 3, 4]}, _ = '$skip'}
+        )
+    ),
+    {ok, UpdateQ = #mekao_query{body = UpdateQBody}}
+        = mekao:update(
+            #book{title = NewTitle = <<"NewTitle">>, _ = '$skip'},
+            #book{id = {'$predicate', in, [1, 2, 3, 4]}, _ = '$skip'},
+            ?TABLE_BOOKS, ?S
+        ),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"UPDATE books SET title = $1"
+                    " WHERE id IN ($2, $3, $4, $5)">>,
+            types = [varchar, int, int, int, int],
+            values = [NewTitle, 1, 2, 3, 4]
+        },
+        UpdateQ#mekao_query{
+            body = iolist_to_binary(UpdateQBody)
+        }
+    ),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"DELETE FROM books WHERE id IN ($1, $2, $3, $4)">>,
+            types = [int, int, int, int],
+            values = [1, 2, 3, 4]
+        },
+        mk_call(
+            delete,
+            #book{id = {'$predicate', in, [1, 2, 3, 4]}, _ = '$skip'}
+        )
+    ),
+    ?assertException(
+        error, {badmatch, false},
+        mk_call(delete, #book{id = {'$predicate', in, []}, _ = '$skip'})
+    ).
+
 prepare_select_test() ->
     #book{author = Author} = book(1),
     Author2 = <<"Francesco Cesarini">>,

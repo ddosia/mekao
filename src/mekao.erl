@@ -30,6 +30,7 @@
 
 -type predicate() :: term()
                   | { '$predicate', between, term(), term() }
+                  | { '$predicate', in, [term(), ...] }
                   | { '$predicate'
                     , '=' | '<>' | '>' | '>=' | '<' | '<=' | like
                     , term()
@@ -416,6 +417,20 @@ qdata(Num, [Pred | Vals], [Col | Cols], S) ->
 
     {NextNum, NewPH, NewT, NewV} =
         case Pred of
+            {'$predicate', in, InVals} ->
+                %% intentional `error:badmatch' to prevent empty `... IN ()'
+                true = is_list(InVals) andalso InVals /= [],
+                {NewNum, RevPHs, RevTypes, RevVals} =
+                    lists:foldl(
+                        fun(InV, {InNum, InPHs, InTypes, InTransVals}) ->
+                            TransV = transform(TrFun, InV),
+                            PH = PHFun(Col, InNum, TransV),
+                            {InNum + 1, [PH | InPHs], [T | InTypes],
+                                [TransV | InTransVals]}
+                        end, {Num, [], [], []}, InVals
+                    ),
+                {NewNum, lists:reverse(RevPHs), lists:reverse(RevTypes),
+                    {'$predicate', in, lists:reverse(RevVals)}};
             {'$predicate', Op, V} ->
                 TransV = transform(TrFun, V),
                 PH = PHFun(Col, Num, TransV),
@@ -491,10 +506,17 @@ predicate({C, PH, T, {'$predicate', Op, V}}, S) when Op == '='; Op == '<>' ->
 predicate({C, {PH1, PH2}, T, {'$predicate', between, V1, V2}}, _S) ->
     {[C, <<" BETWEEN ">>, PH1, <<" AND ">>, PH2], {[PH1, PH2], [T, T], [V1, V2]}};
 
-predicate({C, PH, T, {'$predicate', like, V}},  _S) ->
+predicate({C, PH, T, {'$predicate', like, V}}, _S) ->
     {[C, <<" LIKE ">>, PH], {[PH], [T], [V]}};
 
-predicate({C, PH, T, {'$predicate', OP, V}},  _S) ->
+predicate( {C, PHs, Ts, {'$predicate', in, Vals}}, _S
+         ) when is_list(Vals), Vals /= [] ->
+    {[C, <<" IN (">>,
+            mekao_utils:intersperse(PHs, <<", ">>),
+        <<")">>
+    ], {PHs, Ts, Vals}};
+
+predicate({C, PH, T, {'$predicate', OP, V}}, _S) ->
     {[C, op_to_bin(OP), PH], {[PH], [T], [V]}};
 
 predicate({C, PH, T, V}, S) ->

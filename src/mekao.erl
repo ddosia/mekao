@@ -214,7 +214,8 @@ delete(Selector, Table, S) ->
 
 -spec prepare_insert(entity(), table(), s()) -> p_query().
 prepare_insert(E, Table, S) ->
-    {Cols, PHs, Types, Vals} = qdata(1, e2l(E), Table#mekao_table.columns, S),
+    {NextNum, {Cols, PHs, Types, Vals}} =
+        qdata(1, e2l(E), Table#mekao_table.columns, S),
     Q = #mekao_insert{
         table       = Table#mekao_table.name,
         columns     = mekao_utils:intersperse(Cols, <<", ">>),
@@ -225,7 +226,7 @@ prepare_insert(E, Table, S) ->
         body     = Q,
         types    = Types,
         values   = Vals,
-        next_ph_num = length(PHs) + 1
+        next_ph_num = NextNum
     }.
 
 
@@ -241,9 +242,9 @@ prepare_select(E, Opts, Table, S) ->
         order_by = OrderBy
     } = Table,
 
-    {Where, {PHs, Types, Vals}} = where(
-        qdata(1, e2l(E), MekaoCols, S), S
-    ),
+    {NextNum, QData} = qdata(1, e2l(E), MekaoCols, S),
+    {Where, {Types, Vals}} = where(QData, S),
+
     AllCols = mekao_utils:intersperse(
         MekaoCols, <<", ">>, fun(#mekao_column{name = Name}) -> Name end
     ),
@@ -259,22 +260,21 @@ prepare_select(E, Opts, Table, S) ->
             body     = Q,
             types    = Types,
             values   = Vals,
-            next_ph_num = length(PHs) + 1
+            next_ph_num = NextNum
         }, Opts, S
     ).
 
 
 -spec prepare_update(entity(), selector(), table(), s()) -> p_query().
 prepare_update(SetE, WhereE, Table = #mekao_table{columns = MekaoCols}, S) ->
-    {SetCols, SetPHs, SetTypes, SetVals} = qdata(
-        1, e2l(SetE), MekaoCols, S
-    ),
-    SetPHsLen = length(SetPHs),
+    {SetNextNum, {SetCols, SetPHs, SetTypes, SetVals}} =
+        qdata(1, e2l(SetE), MekaoCols, S),
 
-    {Where, {WherePHs, WhereTypes, WhereVals}}
-        = where(qdata(SetPHsLen + 1, e2l(WhereE), MekaoCols, S), S),
+    {WhereNextNum, WhereQData} =
+        qdata(SetNextNum, e2l(WhereE), MekaoCols, S),
 
-    WherePHsLen = length(WherePHs),
+    {Where, {WhereTypes, WhereVals}} =
+        where(WhereQData, S),
 
     Set = mekao_utils:intersperse2(
         fun (C, PH) -> [C, <<" = ">>, PH] end,
@@ -291,14 +291,16 @@ prepare_update(SetE, WhereE, Table = #mekao_table{columns = MekaoCols}, S) ->
         body     = Q,
         types    = SetTypes ++ WhereTypes,
         values   = SetVals ++ WhereVals,
-        next_ph_num = SetPHsLen + WherePHsLen + 1
+        next_ph_num = WhereNextNum
     }.
 
 
 -spec prepare_delete(selector(), table(), s()) -> p_query().
 prepare_delete(E, Table, S) ->
-    {Where, {PHs, Types, Vals}}
-        = where(qdata(1, e2l(E), Table#mekao_table.columns, S), S),
+    {NextNum, QData} =
+        qdata(1, e2l(E), Table#mekao_table.columns, S),
+    {Where, {Types, Vals}}
+        = where(QData, S),
 
     Q = #mekao_delete{
         table       = Table#mekao_table.name,
@@ -309,7 +311,7 @@ prepare_delete(E, Table, S) ->
         body     = Q,
         types    = Types,
         values   = Vals,
-        next_ph_num = length(PHs) + 1
+        next_ph_num = NextNum
     }.
 
 
@@ -406,8 +408,8 @@ skip(SkipFun, Cols, Vals) ->
     ).
 
 
-qdata(_, [], [], _) ->
-    {[], [], [], []};
+qdata(Num, [], [], _) ->
+    {Num, {[], [], [], []}};
 
 qdata(Num, ['$skip' | Vals], [_Col | Cols], S) ->
     qdata(Num, Vals, Cols, S);
@@ -415,12 +417,12 @@ qdata(Num, ['$skip' | Vals], [_Col | Cols], S) ->
 qdata(Num, [Pred | Vals], [#mekao_column{name = CName} = Col | Cols], S) ->
     {NextNum, NewPH, NewT, NewV} = qdata_predicate(Num, Pred, Col, S),
 
-    {ResCols, ResPHs, ResTypes, ResVals} = qdata(
+    {ResNum, {ResCols, ResPHs, ResTypes, ResVals}} = qdata(
         NextNum, Vals, Cols, S
     ),
 
-    {[CName | ResCols], [NewPH | ResPHs], [NewT | ResTypes],
-        [NewV | ResVals]}.
+    {ResNum, {[CName | ResCols], [NewPH | ResPHs], [NewT | ResTypes],
+        [NewV | ResVals]}}.
 
 
 qdata_predicate(Num, {'$predicate', 'not', Pred}, Col, S) ->
@@ -482,17 +484,17 @@ returning(QType, Table, #mekao_settings{returning = RetFun}) ->
 
 
 where({[], [], [], []}, _S) ->
-    {[], {[], [], []}};
+    {[], {[], []}};
 
 where({[C], [PH], [T], [V]}, S) ->
-    {W, {NewPHs, NewTs, NewVs}} = predicate({C, PH, T, V}, S),
-    {[W], {NewPHs, NewTs, NewVs}};
+    {W, {NewTs, NewVs}} = predicate({C, PH, T, V}, S),
+    {[W], {NewTs, NewVs}};
 
 where({[C | Cs], [PH | PHs], [T | Types], [V | Vals]}, S) ->
-    {W, {NewPHs, NewTs, NewVs}} = predicate({C, PH, T, V}, S),
-    {Ws, {ResPHs, ResTs, ResVs}} = where({Cs, PHs, Types, Vals}, S),
+    {W, {NewTs, NewVs}} = predicate({C, PH, T, V}, S),
+    {Ws, {ResTs, ResVs}} = where({Cs, PHs, Types, Vals}, S),
     {[W, <<" AND ">> | Ws],
-        {NewPHs ++ ResPHs, NewTs ++ ResTs, NewVs ++ ResVs}}.
+        {NewTs ++ ResTs, NewVs ++ ResVs}}.
 
 
 limit( PSelect, Opts, #mekao_settings{limit = undefined}) ->
@@ -514,11 +516,11 @@ limit( PSelect, Opts, #mekao_settings{limit = LimitFun}
 predicate({C, PH, T, {'$predicate', Op, V}}, S) when Op == '='; Op == '<>' ->
     IsNull = (S#mekao_settings.is_null)(V),
     if not IsNull ->
-        {[C, op_to_bin(Op), PH], {[PH], [T], [V]}};
+        {[C, op_to_bin(Op), PH], {[T], [V]}};
     Op == '=' ->
-        {[C, <<" IS NULL">>], {[PH], [T], [V]}};
+        {[C, <<" IS NULL">>], {[T], [V]}};
     Op == '<>' ->
-        {[C, <<" IS NOT NULL">>], {[PH], [T], [V]}}
+        {[C, <<" IS NOT NULL">>], {[T], [V]}}
     end;
 
 predicate({C, PH, T, {'$predicate', 'not', Pred}}, _S) ->
@@ -526,20 +528,20 @@ predicate({C, PH, T, {'$predicate', 'not', Pred}}, _S) ->
     {[<<"NOT (">>, W, <<")">>], Rest};
 
 predicate({C, {PH1, PH2}, T, {'$predicate', between, V1, V2}}, _S) ->
-    {[C, <<" BETWEEN ">>, PH1, <<" AND ">>, PH2], {[PH1, PH2], [T, T], [V1, V2]}};
+    {[C, <<" BETWEEN ">>, PH1, <<" AND ">>, PH2], {[T, T], [V1, V2]}};
 
 predicate({C, PH, T, {'$predicate', like, V}}, _S) ->
-    {[C, <<" LIKE ">>, PH], {[PH], [T], [V]}};
+    {[C, <<" LIKE ">>, PH], {[T], [V]}};
 
 predicate( {C, PHs, Ts, {'$predicate', in, Vals}}, _S
          ) when is_list(Vals), Vals /= [] ->
     {[C, <<" IN (">>,
             mekao_utils:intersperse(PHs, <<", ">>),
         <<")">>
-    ], {PHs, Ts, Vals}};
+    ], {Ts, Vals}};
 
 predicate({C, PH, T, {'$predicate', OP, V}}, _S) ->
-    {[C, op_to_bin(OP), PH], {[PH], [T], [V]}};
+    {[C, op_to_bin(OP), PH], {[T], [V]}};
 
 predicate({C, PH, T, V}, S) ->
     predicate({C, PH, T, {'$predicate', '=', V}}, S).

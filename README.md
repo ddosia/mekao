@@ -135,6 +135,7 @@ each field may contain regular value, or special predicate term.
 | `LIKE`    | `{'$predicate', like, term()}`                |
 | `BETWEEN` | `{'$predicate', 'between', term(), term()}`   |
 | `IN`      | `{'$predicate', in, [term(), ...]}`           |
+| `NOT`     | `{'$predicate', not, predicate()}`            |
 
 Example:
 ```erlang

@@ -34,7 +34,8 @@
                   | { '$predicate'
                     , '=' | '<>' | '>' | '>=' | '<' | '<=' | like
                     , term()
-                    }.
+                    }
+                  | { '$predicate', 'not', predicate()}.
 
 -type select_opt() :: {limit, { RowCount :: non_neg_integer()
                               , Offset   :: non_neg_integer()}}.
@@ -411,49 +412,66 @@ qdata(_, [], [], _) ->
 qdata(Num, ['$skip' | Vals], [_Col | Cols], S) ->
     qdata(Num, Vals, Cols, S);
 
-qdata(Num, [Pred | Vals], [Col | Cols], S) ->
-    #mekao_settings{placeholder = PHFun} = S,
-    #mekao_column{type = T, name = CName, transform = TrFun} = Col,
+qdata(Num, [Pred | Vals], [#mekao_column{name = CName} = Col | Cols], S) ->
+    {NextNum, NewPH, NewT, NewV} = qdata_predicate(Num, Pred, Col, S),
 
-    {NextNum, NewPH, NewT, NewV} =
-        case Pred of
-            {'$predicate', in, InVals} ->
-                %% intentional `error:badmatch' to prevent empty `... IN ()'
-                true = is_list(InVals) andalso InVals /= [],
-                {NewNum, RevPHs, RevTypes, RevVals} =
-                    lists:foldl(
-                        fun(InV, {InNum, InPHs, InTypes, InTransVals}) ->
-                            TransV = transform(TrFun, InV),
-                            PH = PHFun(Col, InNum, TransV),
-                            {InNum + 1, [PH | InPHs], [T | InTypes],
-                                [TransV | InTransVals]}
-                        end, {Num, [], [], []}, InVals
-                    ),
-                {NewNum, lists:reverse(RevPHs), lists:reverse(RevTypes),
-                    {'$predicate', in, lists:reverse(RevVals)}};
-            {'$predicate', Op, V} ->
-                TransV = transform(TrFun, V),
-                PH = PHFun(Col, Num, TransV),
-                {Num + 1, PH, T, {'$predicate', Op, TransV}};
-            {'$predicate', 'between', V1, V2} ->
-                TransV1 = transform(TrFun, V1),
-                TransV2 = transform(TrFun, V2),
-                PH1 = PHFun(Col, Num, TransV1),
-                PH2 = PHFun(Col, Num + 1, TransV2),
-                {Num + 2, {PH1, PH2}, T,
-                    {'$predicate', 'between', TransV1, TransV2}
-                };
-            V ->
-                TransV = transform(TrFun, V),
-                PH = PHFun(Col, Num, TransV),
-                {Num + 1, PH, T, TransV}
-        end,
     {ResCols, ResPHs, ResTypes, ResVals} = qdata(
         NextNum, Vals, Cols, S
     ),
 
     {[CName | ResCols], [NewPH | ResPHs], [NewT | ResTypes],
         [NewV | ResVals]}.
+
+
+qdata_predicate(Num, {'$predicate', 'not', Pred}, Col, S) ->
+    {NextNum, NewPH, NewT, NewV} = qdata_predicate(Num, Pred, Col, S),
+    {NextNum, NewPH, NewT, {'$predicate', 'not', NewV}};
+
+qdata_predicate(Num, {'$predicate', in, InVals}, Col, S) ->
+    #mekao_settings{placeholder = PHFun} = S,
+    #mekao_column{type = T, transform = TrFun} = Col,
+
+    %% intentional `error:badmatch' to prevent empty `... IN ()'
+    true = is_list(InVals) andalso InVals /= [],
+    {NewNum, RevPHs, RevTypes, RevVals} =
+        lists:foldl(
+            fun(InV, {InNum, InPHs, InTypes, InTransVals}) ->
+                TransV = transform(TrFun, InV),
+                PH = PHFun(Col, InNum, TransV),
+                {InNum + 1, [PH | InPHs], [T | InTypes],
+                    [TransV | InTransVals]}
+            end, {Num, [], [], []}, InVals
+        ),
+    {NewNum, lists:reverse(RevPHs), lists:reverse(RevTypes),
+        {'$predicate', in, lists:reverse(RevVals)}};
+
+qdata_predicate(Num, {'$predicate', 'between', V1, V2}, Col, S) ->
+    #mekao_settings{placeholder = PHFun} = S,
+    #mekao_column{type = T, transform = TrFun} = Col,
+
+    TransV1 = transform(TrFun, V1),
+    TransV2 = transform(TrFun, V2),
+    PH1 = PHFun(Col, Num, TransV1),
+    PH2 = PHFun(Col, Num + 1, TransV2),
+    {Num + 2, {PH1, PH2}, T,
+        {'$predicate', 'between', TransV1, TransV2}
+    };
+
+qdata_predicate(Num, {'$predicate', Op, V}, Col, S) ->
+    #mekao_settings{placeholder = PHFun} = S,
+    #mekao_column{type = T, transform = TrFun} = Col,
+
+    TransV = transform(TrFun, V),
+    PH = PHFun(Col, Num, TransV),
+    {Num + 1, PH, T, {'$predicate', Op, TransV}};
+
+qdata_predicate(Num, V, Col, S) ->
+    #mekao_settings{placeholder = PHFun} = S,
+    #mekao_column{type = T, transform = TrFun} = Col,
+
+    TransV = transform(TrFun, V),
+    PH = PHFun(Col, Num, TransV),
+    {Num + 1, PH, T, TransV}.
 
 
 -spec returning(insert | update | delete, table(), s()) -> iolist().
@@ -492,7 +510,7 @@ limit( PSelect, Opts, #mekao_settings{limit = LimitFun}
     end.
 
 
-%% TODO: add NOT, IN, ANY, ALL, BETWEEN handling
+%% TODO: add ANY, ALL handling
 predicate({C, PH, T, {'$predicate', Op, V}}, S) when Op == '='; Op == '<>' ->
     IsNull = (S#mekao_settings.is_null)(V),
     if not IsNull ->
@@ -502,6 +520,10 @@ predicate({C, PH, T, {'$predicate', Op, V}}, S) when Op == '='; Op == '<>' ->
     Op == '<>' ->
         {[C, <<" IS NOT NULL">>], {[PH], [T], [V]}}
     end;
+
+predicate({C, PH, T, {'$predicate', 'not', Pred}}, _S) ->
+    {W, Rest} = predicate({C, PH, T, Pred}, _S),
+    {[<<"NOT (">>, W, <<")">>], Rest};
 
 predicate({C, {PH1, PH2}, T, {'$predicate', between, V1, V2}}, _S) ->
     {[C, <<" BETWEEN ">>, PH1, <<" AND ">>, PH2], {[PH1, PH2], [T, T], [V1, V2]}};

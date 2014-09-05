@@ -389,6 +389,66 @@ in_test() ->
         mk_call(delete, #book{id = {'$predicate', in, []}, _ = '$skip'})
     ).
 
+
+not_test() ->
+    Title = <<"Erlang">>,
+    ?assertMatch(
+        #mekao_query{
+            body = <<"DELETE FROM books WHERE NOT (title = $1)">>,
+            types = [varchar],
+            values = [Title]
+        },
+        mk_call(
+            delete,
+            #book{title = {'$predicate', 'not', Title}, _ = '$skip'}
+        )
+    ),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"SELECT id, isbn, title, author, created FROM books"
+                    " WHERE NOT (title IS NULL)">>,
+            types = [varchar],
+            values = [undefined]
+        },
+        mk_call(
+            select,
+            #book{title = {'$predicate', 'not', undefined}, _ = '$skip'},
+            ?TABLE_BOOKS,
+            ?S#mekao_settings{is_null = fun(V) -> V == undefined end}
+        )
+    ),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"DELETE FROM books WHERE NOT (title LIKE $1)">>,
+            types = [varchar],
+            values = [Title]
+        },
+        mk_call(
+            delete,
+            #book{
+                title = {'$predicate', 'not',
+                    {'$predicate', like, Title}
+                }, _ = '$skip'
+            }
+        )
+    ),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"DELETE FROM books WHERE NOT (NOT (title = $1))">>,
+            types = [varchar],
+            values = [Title]
+        },
+        mk_call(
+            delete,
+            #book{
+                title = {'$predicate', 'not',
+                    {'$predicate', 'not', Title}
+                }, _ = '$skip'
+            }
+        )
+    ).
+
+
 prepare_select_test() ->
     #book{author = Author} = book(1),
     Author2 = <<"Francesco Cesarini">>,

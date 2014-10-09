@@ -3,6 +3,7 @@
 %% API
 -export([
     select_pk/3, select/3, select/4,
+    exists_pk/3, exists/3,
     insert/3, insert_all/3,
     update_pk/3,
     update_pk_diff/4,
@@ -11,6 +12,7 @@
     delete/3,
 
     prepare_select/3, prepare_select/4,
+    prepare_exists/3,
     prepare_insert/3, prepare_insert_all/3,
     prepare_update/4,
     prepare_delete/3,
@@ -119,6 +121,28 @@ select(E, Table, S) ->
 -spec select(selector(), [select_opt()], table(), s()) -> {ok, b_query()}.
 select(E, Opts, Table, S) ->
     {ok, build(prepare_select(E, Opts, Table, S))}.
+
+
+-spec exists_pk(selector(), table(), s()) -> {ok, b_query()}
+                                           | {error, pk_miss}.
+%% @doc Same as `exists/3' but checks only primary key in `EXISTS' clause.
+exists_pk(E, Table, S) ->
+    Q = prepare_exists(
+        skip(fun skip_not_pk/2, Table#mekao_table.columns, e2l(E)),
+        Table, S
+    ),
+    if (Q#mekao_query.body)#mekao_select.where /= [] ->
+        {ok, build(Q)};
+    true ->
+        {error, pk_miss}
+    end.
+
+
+-spec exists(selector(), table(), s()) -> {ok, b_query()}.
+%% @doc Selects one column called `exists' with value `1' or `0', depends on
+%%      `EXISTS' clause return.
+exists(E, Table, S) ->
+    {ok, build(prepare_exists(E, Table, S))}.
 
 
 -spec update_pk(selector(), table(), s()) -> {ok, b_query()}
@@ -307,6 +331,23 @@ prepare_select(E, Opts, Table, S) ->
             next_ph_num = NextNum
         }, Opts, S
     ).
+
+
+-spec prepare_exists(selector(), table(), s()) -> p_query().
+prepare_exists(E, Table, S) ->
+    PrepQ = #mekao_query{
+        body = PrepQBody = #mekao_select{order_by = OrderBy}
+    } = prepare_select(e2l(E), Table, S),
+    PrepQ#mekao_query{
+        body = PrepQBody#mekao_select{
+            columns = {
+                <<"SELECT COUNT(*) AS exists"
+                " FROM (SELECT 1) AS t WHERE EXISTS(">>,
+                <<"1">>, <<"">>
+            },
+            order_by = {<<"">>, OrderBy, <<")">>}
+        }
+    }.
 
 
 -spec prepare_update(entity(), selector(), table(), s()) -> p_query().

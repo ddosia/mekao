@@ -484,6 +484,53 @@ prepare_select_test() ->
     ).
 
 
+exists_test() ->
+    #book{id = Id, isbn = Isbn, author = Author} = book(1),
+    ?assertMatch(
+        #mekao_query{
+            body = <<
+                "SELECT COUNT(*) AS exists FROM (SELECT 1) AS t WHERE EXISTS("
+                    "SELECT 1 FROM books WHERE isbn = $1 AND author = $2"
+                ")"
+            >>, types = [varchar, varchar], values = [Isbn, Author]
+        },
+        mk_call(
+            exists,
+            #book{isbn = Isbn, author = Author, _ = '$skip'}
+        )
+    ),
+    ?assertMatch(
+        #mekao_query{
+            body = <<
+                "SELECT COUNT(*) AS exists FROM (SELECT 1) AS t WHERE EXISTS("
+                    "SELECT 1 FROM books WHERE id IS NULL"
+                ")"
+            >>, types = [], values = []
+        },
+        mk_call(
+            exists_pk,
+            #book{id = undefined, _ = '$skip'}
+        )
+    ),
+    ?assertMatch(
+        #mekao_query{
+            body = <<
+                "SELECT COUNT(*) AS exists FROM (SELECT 1) AS t WHERE EXISTS("
+                    "SELECT 1 FROM books WHERE id = $1"
+                ")"
+            >>, types = [int], values = [Id]
+        },
+        mk_call(
+            exists_pk,
+            #book{id = Id, author = <<"Doesn't matter">>, _ = '$skip'}
+        )
+    ),
+    ?assertMatch(
+        {error, pk_miss},
+        mekao:exists_pk(book('$skip'), ?TABLE_BOOKS, ?S)
+    ).
+
+
 prepare_select_triple_test() ->
     T = ?TABLE_BOOKS#mekao_table{order_by = [#book.title]},
     #book{author = Author} = book(1),

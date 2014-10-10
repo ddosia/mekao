@@ -4,6 +4,7 @@
 -export([
     select_pk/3, select/3, select/4,
     exists_pk/3, exists/3,
+    count/3,
     insert/3, insert_all/3,
     update_pk/3,
     update_pk_diff/4,
@@ -12,7 +13,7 @@
     delete/3,
 
     prepare_select/3, prepare_select/4,
-    prepare_exists/3,
+    prepare_exists/3, prepare_count/3,
     prepare_insert/3, prepare_insert_all/3,
     prepare_update/4,
     prepare_delete/3,
@@ -143,6 +144,12 @@ exists_pk(E, Table, S) ->
 %%      `EXISTS' clause return.
 exists(E, Table, S) ->
     {ok, build(prepare_exists(E, Table, S))}.
+
+
+-spec count(selector(), table(), s()) -> {ok, b_query()}.
+%% @doc Selects `COUNT(*)' with `WHERE' clause based on `selector()'.
+count(E, Table, S) ->
+    {ok, build(prepare_count(E, Table, S))}.
 
 
 -spec update_pk(selector(), table(), s()) -> {ok, b_query()}
@@ -349,6 +356,16 @@ prepare_exists(E, Table, S) ->
         }
     }.
 
+
+-spec prepare_count(selector(), table(), s()) -> p_query().
+prepare_count(E, Table, S) ->
+    PrepQ = #mekao_query{body = PrepQBody} =
+        prepare_select(e2l(E), Table, S),
+    PrepQ#mekao_query{
+        body = PrepQBody#mekao_select{
+            columns = <<"COUNT(*) as count">>
+        }
+    }.
 
 -spec prepare_update(entity(), selector(), table(), s()) -> p_query().
 prepare_update(SetE, WhereE, Table = #mekao_table{columns = MekaoCols}, S) ->

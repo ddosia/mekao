@@ -531,6 +531,22 @@ exists_test() ->
     ).
 
 
+count_test() ->
+    #book{isbn = Isbn, author = Author} = book(1),
+    ?assertMatch(
+        #mekao_query{
+            body = <<
+                "SELECT COUNT(*) as count FROM books"
+                " WHERE isbn = $1 AND author = $2"
+            >>, types = [varchar, varchar], values = [Isbn, Author]
+        },
+        mk_call(
+            count,
+            #book{isbn = Isbn, author = Author, _ = '$skip'}
+        )
+    ).
+
+
 prepare_select_triple_test() ->
     T = ?TABLE_BOOKS#mekao_table{order_by = [#book.title]},
     #book{author = Author} = book(1),

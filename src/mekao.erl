@@ -82,8 +82,7 @@ insert(E, Table, S) ->
     end.
 
 
--spec insert_all( [entity(), ...], table(), s()
-                ) -> {ok, b_query()} | {error, empty_insert}.
+-spec insert_all([entity(), ...], table(), s()) -> {ok, b_query()}.
 %% @doc Inserts entities, places `DEFAULT' keyword when column with `$skip'
 %%      value occurs.
 insert_all(Es = [_ | _], Table, S) ->
@@ -92,11 +91,7 @@ insert_all(Es = [_ | _], Table, S) ->
             || E <- Es],
         Table, S
     ),
-    if Q#mekao_query.values /= [] ->
-        {ok, build(Q)};
-    true ->
-        {error, empty_insert}
-    end.
+    {ok, build(Q)}.
 
 
 -spec select_pk(selector(), table(), s()) -> {ok, b_query()}

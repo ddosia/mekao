@@ -67,9 +67,9 @@
             ) -> {ok, b_query()} | {error, empty_insert}.
 %% @doc Inserts entity, omits columns with `$skip' value.
 insert(E, Table, S) ->
-    SkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
     Q = prepare_insert(
-        skip(SkipFun, Table#mekao_table.columns, e2l(E)), Table, S
+        skip(fun skip_ro_or_skip/2, Table#mekao_table.columns, e2l(E)),
+        Table, S
     ),
 
     if Q#mekao_query.values /= [] ->
@@ -84,9 +84,10 @@ insert(E, Table, S) ->
 %% @doc Inserts entities, places `DEFAULT' keyword when column with `$skip'
 %%      value occurs.
 insert_all(Es = [_ | _], Table, S) ->
-    SkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
     Q = prepare_insert_all(
-        [skip(SkipFun, Table#mekao_table.columns, e2l(E)) || E <- Es], Table, S
+        [skip(fun skip_ro_or_skip/2, Table#mekao_table.columns, e2l(E))
+            || E <- Es],
+        Table, S
     ),
     if Q#mekao_query.values /= [] ->
         {ok, build(Q)};
@@ -99,9 +100,9 @@ insert_all(Es = [_ | _], Table, S) ->
                                            | {error, pk_miss}.
 %% @doc Reads entity by it's primary key.
 select_pk(E, Table, S) ->
-    SkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
     Q = prepare_select(
-        skip(SkipFun, Table#mekao_table.columns, e2l(E)), Table, S
+        skip(fun skip_not_pk/2, Table#mekao_table.columns, e2l(E)),
+        Table, S
     ),
     if Q#mekao_query.values /= [] ->
         {ok, build(Q)};
@@ -117,10 +118,7 @@ select(E, Table, S) ->
 
 -spec select(selector(), [select_opt()], table(), s()) -> {ok, b_query()}.
 select(E, Opts, Table, S) ->
-    SkipFun = fun(_, V) -> V == '$skip' end,
-    {ok, build(prepare_select(
-        skip(SkipFun, Table#mekao_table.columns, e2l(E)), Opts, Table, S
-    ))}.
+    {ok, build(prepare_select(E, Opts, Table, S))}.
 
 
 -spec update_pk(selector(), table(), s()) -> {ok, b_query()}
@@ -133,11 +131,11 @@ update_pk(E, Table = #mekao_table{columns = MekaoCols}, S) ->
         fun(#mekao_column{ro = RO, key = Key}, V) ->
             RO orelse V == '$skip' orelse Key
         end,
-    WhereSkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
 
     Vals = e2l(E),
     Q = prepare_update(
-        skip(SetSkipFun, MekaoCols, Vals), skip(WhereSkipFun, MekaoCols, Vals),
+        skip(SetSkipFun, MekaoCols, Vals),
+        skip(fun skip_not_pk/2, MekaoCols, Vals),
         Table, S
     ),
     if (Q#mekao_query.body)#mekao_update.set == [] ->
@@ -164,12 +162,10 @@ update_pk_diff(E1, E2, Table = #mekao_table{columns = MekaoCols}, S) ->
             (_, V2) -> V2
         end, Vals1, Vals2
     ),
-    SetSkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
-    WhereSkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
 
     Q = prepare_update(
-        skip(SetSkipFun, MekaoCols, DiffVals),
-        skip(WhereSkipFun, MekaoCols, Vals1),
+        skip(fun skip_ro_or_skip/2, MekaoCols, DiffVals),
+        skip(fun skip_not_pk/2, MekaoCols, Vals1),
         Table, S
     ),
 
@@ -188,13 +184,9 @@ update_pk_diff(E1, E2, Table = #mekao_table{columns = MekaoCols}, S) ->
 %%      non `$skip' fields. This is possible to update PK as well if it
 %%      is not `ro = true'.
 update(E, Selector, Table = #mekao_table{columns = MekaoCols}, S) ->
-    SetSkipFun = fun(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip' end,
-    WhereSkipFun = fun(_, V) -> V == '$skip' end,
-
     Q = prepare_update(
-        skip(SetSkipFun, MekaoCols, e2l(E)),
-        skip(WhereSkipFun, MekaoCols, e2l(Selector)),
-        Table, S
+        skip(fun skip_ro_or_skip/2, MekaoCols, e2l(E)),
+        Selector, Table, S
     ),
     if (Q#mekao_query.body)#mekao_update.set == [] ->
         {error, empty_update};
@@ -206,9 +198,9 @@ update(E, Selector, Table = #mekao_table{columns = MekaoCols}, S) ->
 -spec delete_pk(selector(), table(), s()) -> {ok, b_query()} | {error, pk_miss}.
 %% @doc Deletes entity by primary key.
 delete_pk(E, Table, S) ->
-    SkipFun = fun(#mekao_column{key = Key}, _) -> not Key end,
     Q = prepare_delete(
-        skip(SkipFun, Table#mekao_table.columns, e2l(E)), Table, S
+        skip(fun skip_not_pk/2, Table#mekao_table.columns, e2l(E)),
+        Table, S
     ),
     if Q#mekao_query.values /= [] ->
         {ok, build(Q)};
@@ -221,12 +213,7 @@ delete_pk(E, Table, S) ->
 %% @doc Deletes entities, composes WHERE clause  from `Selector'
 %%      non `$skip' fields.
 delete(Selector, Table, S) ->
-    SkipFun = fun(_, V) -> V == '$skip' end,
-
-    Q = prepare_delete(
-        skip(SkipFun, Table#mekao_table.columns, e2l(Selector)), Table, S
-    ),
-    {ok, build(Q)}.
+    {ok, build(prepare_delete(Selector, Table, S))}.
 
 
 -spec prepare_insert(entity(), table(), s()) -> p_query().
@@ -696,3 +683,7 @@ untriplify({C1, C2, C3}, F) when is_function(F) ->
     [C1, F(C2), C3];
 untriplify(C, F) ->
     F(C).
+
+
+skip_not_pk(#mekao_column{key = Key}, _) -> not Key.
+skip_ro_or_skip(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip'.

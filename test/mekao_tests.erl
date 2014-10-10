@@ -150,7 +150,7 @@ returning_test_() ->
     ].
 
 
-limit_test_() ->
+limit_test() ->
     RowCount0 = 10,
     Offset0   = 40,
     S = ?S#mekao_settings{
@@ -173,50 +173,55 @@ limit_test_() ->
                 }
         end
     },
-    [
-        ?_assertMatch(
-            #mekao_query{
-                body = <<"SELECT id, isbn, title, author, created FROM books",
-                        " LIMIT $1 OFFSET $2">>,
-                types  = [int, int],
-                values = [RowCount0, Offset0],
-                next_ph_num = 3
-            },
-            mk_call(
-                select,
-                #book{_ = '$skip' },
-                [{limit, {RowCount0, Offset0}}],
-                ?TABLE_BOOKS, S
-            )
-        ),
-        ?_assertMatch(
-            #mekao_query{
-                body = <<"SELECT id, isbn, title, author, created FROM books",
-                        " WHERE title LIKE $1 LIMIT $2 OFFSET $3">>,
-                types  = [varchar, int, int],
-                values = [<<"%Erlang%">>, RowCount0, Offset0],
-                next_ph_num = 4
-            },
-            mk_call(
-                select,
-                #book{
-                    title = {'$predicate', like, <<"%Erlang%">>},
-                    _ = '$skip'
-                },
-                [{limit, {RowCount0, Offset0}}],
-                ?TABLE_BOOKS, S
-            )
-        ),
-        ?_assertException(
-            error, {badmatch, {RowCount0, Offset0}},
-            mk_call(
-                select,
-                #book{_ = '$skip'},
-                [{limit, {RowCount0, Offset0}}],
-                ?TABLE_BOOKS, ?S
-            )
+    ?assertMatch(
+        #mekao_query{
+            body = <<"SELECT id, isbn, title, author, created FROM books",
+                    " LIMIT $1 OFFSET $2">>,
+            types  = [int, int],
+            values = [RowCount0, Offset0],
+            next_ph_num = 3
+        },
+        mk_call(
+            select,
+            #book{_ = '$skip' },
+            [{limit, {RowCount0, Offset0}}],
+            ?TABLE_BOOKS, S
         )
-    ].
+    ),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"SELECT id, isbn, title, author, created FROM books",
+                    " WHERE title LIKE $1 LIMIT $2 OFFSET $3">>,
+            types  = [varchar, int, int],
+            values = [<<"%Erlang%">>, RowCount0, Offset0],
+            next_ph_num = 4
+        },
+        mk_call(
+            select,
+            #book{
+                title = {'$predicate', like, <<"%Erlang%">>},
+                _ = '$skip'
+            },
+            [{limit, {RowCount0, Offset0}}],
+            ?TABLE_BOOKS, S
+        )
+    ),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"SELECT id, isbn, title, author, created FROM books">>,
+            types  = [], values = [], next_ph_num = 1
+        },
+        mk_call(select, #book{_ = '$skip'}, [], ?TABLE_BOOKS, S)
+    ),
+    ?assertException(
+        error, {badmatch, {RowCount0, Offset0}},
+        mk_call(
+            select,
+            #book{_ = '$skip'},
+            [{limit, {RowCount0, Offset0}}],
+            ?TABLE_BOOKS, ?S
+        )
+    ).
 
 
 column_type_test() ->
@@ -695,13 +700,19 @@ select_pk_test() ->
 order_by_test() ->
     T = ?TABLE_BOOKS#mekao_table{
         order_by = [
-            #book.author, {#book.title, {desc, default}}, "EXTRACT(DAY FROM created)"
+            #book.id,
+            {#book.isbn, {asc, default}},
+            {#book.title, {desc, default}},
+            {#book.author, {asc, nulls_first}},
+            {#book.created, {desc, nulls_last}},
+            "EXTRACT(DAY FROM created)"
         ]
     },
     ?assertMatch(
         #mekao_query{
             body = <<"SELECT id, isbn, title, author, created FROM books",
-                    " ORDER BY 4, 3 DESC, EXTRACT(DAY FROM created)">>
+                    " ORDER BY 1, 2 ASC, 3 DESC, 4 ASC NULLS FIRST,"
+                    " 5 DESC NULLS LAST, EXTRACT(DAY FROM created)">>
         },
         mk_call(
             select, #book{_ = '$skip'}, T, ?S
@@ -752,6 +763,13 @@ update_test() ->
             ?TABLE_BOOKS, ?S
         ),
 
+    ?assertMatch(
+        {error, empty_update},
+        mekao:update(
+            #book{_ = '$skip'}, #book{isbn = Isbn, _ = '$skip'},
+            ?TABLE_BOOKS, ?S
+        )
+    ),
     ?assertMatch(
         #mekao_query{
             body = <<"UPDATE books SET title = $1 WHERE isbn = $2">>,

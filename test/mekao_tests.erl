@@ -33,8 +33,8 @@ is_null_test_() ->
             #mekao_query{
                 body = <<"SELECT id, isbn, title, author, created FROM books",
                         " WHERE author IS NULL">>,
-                types = [varchar],
-                values = [Null]
+                types = [],
+                values = []
             },
             mk_call(
                 select, #book{author = Null, _ = '$skip'}, ?TABLE_BOOKS, S
@@ -44,8 +44,8 @@ is_null_test_() ->
             #mekao_query{
                 body = <<"SELECT id, isbn, title, author, created FROM books",
                         " WHERE author IS NOT NULL">>,
-                types = [varchar],
-                values = [Null]
+                types = [],
+                values = []
             },
             mk_call(
                 select, #book{author = {'$predicate', '<>', Null}, _ = '$skip'},
@@ -407,8 +407,8 @@ not_test() ->
         #mekao_query{
             body = <<"SELECT id, isbn, title, author, created FROM books"
                     " WHERE NOT (title IS NULL)">>,
-            types = [varchar],
-            values = [undefined]
+            types = [],
+            values = []
         },
         mk_call(
             select,

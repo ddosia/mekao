@@ -598,9 +598,9 @@ predicate({C, PH, T, {'$predicate', Op, V}}, S) when Op == '='; Op == '<>' ->
     if not IsNull ->
         {[C, op_to_bin(Op), PH], {[T], [V]}};
     Op == '=' ->
-        {[C, <<" IS NULL">>], {[T], [V]}};
+        {[C, <<" IS NULL">>], {[], []}};
     Op == '<>' ->
-        {[C, <<" IS NOT NULL">>], {[T], [V]}}
+        {[C, <<" IS NOT NULL">>], {[], []}}
     end;
 
 predicate({C, PH, T, {'$predicate', 'not', Pred}}, _S) ->

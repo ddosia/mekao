@@ -104,7 +104,7 @@ select_pk(E, Table, S) ->
         skip(fun skip_not_pk/2, Table#mekao_table.columns, e2l(E)),
         Table, S
     ),
-    if Q#mekao_query.values /= [] ->
+    if (Q#mekao_query.body)#mekao_select.where /= [] ->
         {ok, build(Q)};
     true ->
         {error, pk_miss}
@@ -202,7 +202,7 @@ delete_pk(E, Table, S) ->
         skip(fun skip_not_pk/2, Table#mekao_table.columns, e2l(E)),
         Table, S
     ),
-    if Q#mekao_query.values /= [] ->
+    if (Q#mekao_query.body)#mekao_delete.where /= [] ->
         {ok, build(Q)};
     true ->
         {error, pk_miss}

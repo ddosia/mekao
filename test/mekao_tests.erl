@@ -614,9 +614,16 @@ select_pk_test() ->
     ?assertMatch(
         #mekao_query{
             body = <<"SELECT id, isbn, title, author, created FROM books",
+                    " WHERE id IS NULL">>,
+            types = [], values = []
+        },
+        mk_call(select_pk, book(undefined))
+    ),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"SELECT id, isbn, title, author, created FROM books",
                     " WHERE id = $1">>,
-            types = [int],
-            values = [1]
+            types = [int], values = [1]
         },
         mk_call(select_pk, book(1))
     ).
@@ -696,6 +703,15 @@ update_test() ->
 
 update_pk_test() ->
     Book = #book{isbn = Isbn, title = Title, author = Author} = book(1),
+    ?assertMatch(
+        #mekao_query{
+            body = <<"UPDATE books SET isbn = $1, title = $2, author = $3",
+                    " WHERE id IS NULL">>,
+            types = [varchar, varchar, varchar],
+            values = [Isbn, Title, Author]
+        },
+        mk_call(update_pk, Book#book{id = undefined})
+    ),
     ?assertMatch(
         #mekao_query{
             body = <<"UPDATE books SET isbn = $1, title = $2, author = $3",
@@ -799,9 +815,15 @@ update_key_changed_test() ->
 delete_pk_test() ->
     ?assertMatch(
         #mekao_query{
+            body = <<"DELETE FROM books WHERE id IS NULL">>,
+            types = [], values = []
+        },
+        mk_call(delete_pk, book(undefined))
+    ),
+    ?assertMatch(
+        #mekao_query{
             body = <<"DELETE FROM books WHERE id = $1">>,
-            types = [int],
-            values = [1]
+            types = [int], values = [1]
         },
         mk_call(delete_pk, book(1))
     ).

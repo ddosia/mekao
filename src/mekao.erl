@@ -28,17 +28,14 @@
 -type column()  :: #mekao_column{}.
 -type s()       :: #mekao_settings{}.
 
--type entity()      :: tuple() | list(term() | '$skip').
--type selector()    :: tuple() | list(predicate()).
-
--type predicate() :: term()
-                  | { '$predicate', between, term(), term() }
-                  | { '$predicate', in, [term(), ...] }
-                  | { '$predicate'
-                    , '=' | '<>' | '>' | '>=' | '<' | '<=' | like
-                    , term()
-                    }
-                  | { '$predicate', 'not', predicate()}.
+-type predicate(Val) :: Val
+                      | { '$predicate', between, Val, Val }
+                      | { '$predicate', in, [Val, ...] }
+                      | { '$predicate'
+                        , '=' | '<>' | '>' | '>=' | '<' | '<=' | like
+                        , Val
+                        }
+                      | { '$predicate', 'not', predicate(Val) }.
 
 -type select_opt() :: {limit, { RowCount :: non_neg_integer()
                               , Offset   :: non_neg_integer()}}.
@@ -58,9 +55,14 @@
 -export_type([
     iotriple/0,
     table/0, column/0, s/0,
-    'query'/1, p_query/0, b_query/0,
-    predicate/0
+    predicate/1,
+    'query'/1, p_query/0, b_query/0
 ]).
+
+
+%% not much sense in terms of analysis, just in doc purposes
+-type entity()   :: tuple() | list(term() | '$skip').
+-type selector() :: tuple() | list(predicate(term()) | '$skip').
 
 %% ===================================================================
 %% API functions

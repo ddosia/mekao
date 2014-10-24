@@ -11,7 +11,7 @@ Main assumption is that records are used to represent DB data.
 2.  [Basic usage](#usage)
 3.  [Records](#records)
 4.  [Selectors](#selectors)
-5.  [Entities](#entities)
+5.  [Specs](doc/specs.md)
 
 
 # Thesis
@@ -44,7 +44,7 @@ To begin to use *mekao* you'll need couple of things:
 * make a record with same fields as in SQL table you are interested in;
 * describe table in terms of *mekao*;
 * write some general settings for all queries (like how exactly LIMIT queries
-are constructed for you RDBMS dialect, or how placeholders are looks like for
+are constructed for your RDBMS dialect, or how placeholders are looks like for
 you DB driver).
 
 ### make a record
@@ -68,9 +68,9 @@ you DB driver).
     ]
 }).
 ```
-Pay attention, when you describe a `#mekao_table{}` each field in `#mekao_table`
-must be at the same position as fields in corresponding record (in our case is
-`#book{}`).
+Pay attention: each field in `#mekao_table{}` must be at the same position as
+corresponding field in `#book{}` (like `title` column have 3rd position in both
+records).
 
 
 ### write general settings
@@ -183,10 +183,3 @@ mekao:select(
 ```
 
 see `mekao:selector()` type spec.
-
-
-# Entities
-Basically when you changing some data you may pass regular value or '$skip' atom
-to exclude field from result.
-
-see `mekao:entity()` type spec.

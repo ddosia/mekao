@@ -1,6 +1,6 @@
 -module(mekao_tests).
 
--record(book, {id, isbn, title, author, created}).
+-record(book, {id, isbn, title, author, created, not_db_field}).
 
 -include("mekao.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -12,7 +12,8 @@
         #mekao_column{name = <<"isbn">>, type = varchar},
         #mekao_column{name = <<"title">>, type = varchar},
         #mekao_column{name = <<"author">>, type = varchar},
-        #mekao_column{name = <<"created">>, type = timestamp, ro = true}
+        #mekao_column{name = <<"created">>, type = timestamp, ro = true},
+        '$skip' %% skipping #book.not_db_field
     ]
 }).
 

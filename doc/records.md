@@ -95,7 +95,10 @@ This record describes SQL table.
 ```erlang
 -record(mekao_table, {
     name            :: iodata(),
-    columns = []    :: [mekao:column()],
+    columns = []    :: [ mekao:column()
+                       % entity record's field on the same pos is out of
+                       % interest
+                       | '$skip' ],
     %% order by column position or by arbitrary expression
     order_by = []   :: [ non_neg_integer() % record's field pos
                        | iodata()          % arbitrary expression
@@ -119,19 +122,24 @@ Example:
 
 ### columns
 List of table columns. Order matters. Each column position must be the same
-as a corresponding record field.
+as a corresponding record's field.
 
 Example:
 ```erlang
--record(book, {id, isbn}).
+-record(book, {id, isbn, not_db_field}).
 
 #mekao_table{
     columns = [
         #mekao_column{name = <<"id">>}, %% first position, same as #book.id
         #mekao_column{name = <<"isbn">>} %% second position, same as #book.isbn
+        '$skip'
     ]
 }.
 ```
+The last column `#book.not_db_field` illustrating possibility of having some
+record's fields, which are not represented by any particular SQL table's
+column, but serves just for internal usage.
+
 See [#mekao_column{}](#mekao_column)
 
 ### order_by

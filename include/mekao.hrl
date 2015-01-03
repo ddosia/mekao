@@ -44,7 +44,10 @@
 
 -record(mekao_table, {
     name            :: iodata(),
-    columns = []    :: [mekao:column()],
+    columns = []    :: [ mekao:column()
+                       % entity record's field on the same pos is out of
+                       % interest
+                       | '$skip' ],
     %% order by column position or by arbitrary expression
     order_by = []   :: [ non_neg_integer() % record's field pos
                        | iodata()          % arbitrary expression

@@ -280,11 +280,7 @@ prepare_insert_all(Es = [_ | _], Table, S) ->
 
     Q = #mekao_insert{
         table = Table#mekao_table.name,
-        columns =
-            mekao_utils:intersperse(
-                MekaoCols, <<", ">>,
-                fun(#mekao_column{name = Name}) -> Name end
-            ),
+        columns = intersperse_sel_cols(MekaoCols),
         values =
             mekao_utils:intersperse(
                 lists:reverse(RevPHs), <<", ">>,
@@ -317,13 +313,9 @@ prepare_select(E, Opts, Table, S) ->
     {NextNum, QData} = qdata(1, e2l(E), MekaoCols, S),
     {Where, {Types, Vals}} = where(QData, S),
 
-    AllCols = mekao_utils:intersperse(
-        MekaoCols, <<", ">>, fun(#mekao_column{name = Name}) -> Name end
-    ),
-
     Q = #mekao_select{
         table       = Table#mekao_table.name,
-        columns     = AllCols,
+        columns     = intersperse_sel_cols(MekaoCols),
         where       = Where,
         order_by    = order_by(OrderBy)
     },
@@ -498,11 +490,12 @@ e2l(E) when is_tuple(E) ->
 
 skip(SkipFun, Cols, Vals) ->
     mekao_utils:map2(
-        fun(C, V) ->
-            Skip = SkipFun(C, V),
-            if  Skip -> '$skip';
-                true    -> V
-            end
+        fun ('$skip', V) -> V;
+            (C, V) ->
+                Skip = SkipFun(C, V),
+                if  Skip -> '$skip';
+                    true -> V
+                end
         end, Cols, Vals
     ).
 
@@ -511,6 +504,9 @@ qdata(Num, [], [], _) ->
     {Num, {[], [], [], []}};
 
 qdata(Num, ['$skip' | Vals], [_Col | Cols], S) ->
+    qdata(Num, Vals, Cols, S);
+
+qdata(Num, [_Pred | Vals], ['$skip' | Cols], S) ->
     qdata(Num, Vals, Cols, S);
 
 qdata(Num, [Pred | Vals], [#mekao_column{name = CName} = Col | Cols], S) ->
@@ -526,6 +522,9 @@ qdata(Num, [Pred | Vals], [#mekao_column{name = CName} = Col | Cols], S) ->
 
 qdata_insert(Num, [], [], _) ->
     {Num, {[], [], []}};
+
+qdata_insert(Num, [_Pred | Vals], ['$skip' | Cols], S) ->
+    qdata_insert(Num, Vals, Cols, S);
 
 qdata_insert(Num, ['$skip' | Vals], [_Col | Cols], S) ->
     {ResNum, {ResPHs, ResTypes, ResVals}} = qdata_insert(
@@ -742,3 +741,9 @@ untriplify(C, F) ->
 
 skip_not_pk(#mekao_column{key = Key}, _) -> not Key.
 skip_ro_or_skip(#mekao_column{ro = RO}, V) -> RO orelse V == '$skip'.
+
+intersperse_sel_cols(MekaoCols) ->
+    mekao_utils:intersperse(
+        [Col#mekao_column.name || Col <- MekaoCols, Col /= '$skip'],
+        <<", ">>
+    ).

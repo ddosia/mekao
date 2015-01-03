@@ -1,3 +1,4 @@
+sudo: false
 language: erlang
 otp_release:
   - 17.1
@@ -6,4 +7,4 @@ branches:
   only:
     - master
     - devel
-script: make eunit build-plt dialyze
+script: make tests dialyze

@@ -3,4 +3,4 @@
 *.plt
 ebin/
 deps/
-.eunit/
+test/*.beam

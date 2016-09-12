@@ -9,9 +9,10 @@ Main assumption is that records are used to represent DB data.
 # ToC
 1.  [Thesis](#thesis)
 2.  [Basic usage](#usage)
-3.  [Records](#records)
-4.  [Selectors](#selectors)
-5.  [Specs](doc/specs.md)
+3.  [Install](#install)
+4.  [Records](#records)
+5.  [Selectors](#selectors)
+6.  [Specs](doc/specs.md)
 
 
 # Thesis
@@ -142,6 +143,20 @@ If you want to extend resulted query use `mekao:prepare_*` set of queries
 instead.
 
 For more examples please see [test/mekao_tests.erl](test/mekao_tests.erl).
+
+# Install
+Add this to `rebar.config`
+```erlang
+{deps, [
+    {mekao, {git, "git://github.com/ddosia/mekao.git", {branch, "v0"}}}
+]}.
+
+```
+
+Project follows [SemVer](http://semver.org) versioning conventions. Backward
+incompatible changes will result in a new branch, named after *MAJOR* version,
+i.e. *v0*, *v1*, *v2* and so on. Make sure that your project depends
+on particular branch and not on master.
 
 
 # Records

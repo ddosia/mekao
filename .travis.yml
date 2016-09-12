@@ -1,10 +1,13 @@
 sudo: false
 language: erlang
 otp_release:
-  - 17.1
+  - 19.0
   - R16B03-1
 branches:
   only:
     - master
     - devel
-script: make tests dialyze
+install:
+    - wget https://s3.amazonaws.com/rebar3/rebar3 -O rebar3
+    - chmod u+x rebar3
+script: ./rebar3 do dialyzer,eunit

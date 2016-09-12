@@ -153,6 +153,8 @@ Add this to `rebar.config`
 
 ```
 
+Alternatively use [hex](https://hex.pm/packages/mekao).
+
 Project follows [SemVer](http://semver.org) versioning conventions. Backward
 incompatible changes will result in a new branch, named after *MAJOR* version,
 i.e. *v0*, *v1*, *v2* and so on. Make sure that your project depends

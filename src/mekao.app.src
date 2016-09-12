@@ -1,12 +1,12 @@
 {application, mekao,
  [
   {description, "Simple SQL builder"},
-  {vsn, "0.4.2"},
+  {vsn, "0.4.3"},
+  {maintainers, ["Daniil Churikov <ddosia@gmail.com>"]},
+  {licenses, ["MIT"]},
+  {links, [{"Github", "https://github.com/ddosia/mekao"}]},
   {registered, []},
-  {applications, [
-                  kernel,
-                  stdlib
-                 ]},
   {modules, []},
-  {env, []}
+  {env, []},
+  {applications, [ kernel, stdlib ]}
  ]}.

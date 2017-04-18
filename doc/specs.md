@@ -1,4 +1,4 @@
-#Specs
+# Specs
 
 This document tries to describe how to use specs with *mekao*.
 
